@@ -9,6 +9,8 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // Docker 挂载在 macOS 下文件事件可能丢失，用轮询保证改动被及时热加载。
+    watch: { usePolling: true, interval: 1000 },
     proxy: {
       '/api': { target: backend, changeOrigin: true },
       '/health': { target: backend, changeOrigin: true },
