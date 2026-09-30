@@ -55,6 +55,8 @@ CREATE TABLE assets (
   pool_reason  VARCHAR(64),                           -- parse_error / u_overlap / u_out_of_range ...
   field_source JSONB NOT NULL DEFAULT '{}',           -- {"cpu_model":"import","sn":"manual"}
   remark       TEXT,
+  holder_id    INT REFERENCES users(id),              -- 挂账人（仅交换机 type='switch'；服务器不挂账）
+  holder_name  VARCHAR(64),                           -- 挂账人姓名快照（工号匹配不到时保留原文）
   dept_id      INT NOT NULL DEFAULT 1,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -73,18 +75,27 @@ CREATE INDEX idx_assets_ip_inband ON assets(ip_inband);
 CREATE INDEX idx_assets_cabinet ON assets(cabinet_id);
 CREATE INDEX idx_assets_pool ON assets(in_pool) WHERE deleted_at IS NULL;
 
+-- 2026-10-01：为「手工物料表格导入」补齐字段。导入表列为
+-- BMC IP / 整机SN / 物料类型 / SN / 物料编码 / 物料名称 / 备注 / 挂账人，
+-- 其中 物料编码→material_code、物料名称→name、挂账人→holder_id+holder_name。
+-- 挂账人落在：部件（components）与交换机（assets，type='switch'）；
+-- 服务器整机（type='server'）不挂账，有价值的部件才单独建账。
 CREATE TABLE components (
-  id         SERIAL PRIMARY KEY,
-  asset_id   INT NOT NULL REFERENCES assets(id),
-  category   VARCHAR(32) NOT NULL,   -- cpu/memory/disk/nic/optical/board/cable/fan...
-  sn         VARCHAR(64),            -- 数量管理类可为空
-  model      VARCHAR(128),
-  qty        INT NOT NULL DEFAULT 1,
-  sn_source  VARCHAR(16) NOT NULL DEFAULT 'manual', -- import / manual / bmc
-  remark     TEXT,
-  dept_id    INT NOT NULL DEFAULT 1,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  deleted_at TIMESTAMPTZ
+  id            SERIAL PRIMARY KEY,
+  asset_id      INT NOT NULL REFERENCES assets(id),
+  category      VARCHAR(32) NOT NULL,   -- cpu/memory/disk/nic/optical/board/cable/fan...
+  sn            VARCHAR(64),            -- 物料自身 SN（数量管理类可为空）
+  model         VARCHAR(128),
+  name          VARCHAR(255),           -- 物料名称（text，后期正则解析）
+  material_code VARCHAR(64),            -- 物料编码（同类型同型号料号，如 03045A）
+  qty           INT NOT NULL DEFAULT 1,
+  sn_source     VARCHAR(16) NOT NULL DEFAULT 'manual', -- import / manual / bmc
+  remark        TEXT,
+  holder_id     INT REFERENCES users(id), -- 挂账人（关联 users）
+  holder_name   VARCHAR(64),            -- 挂账人姓名快照（工号匹配不到时保留原文）
+  dept_id       INT NOT NULL DEFAULT 1,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deleted_at    TIMESTAMPTZ
 );
 CREATE INDEX idx_components_sn ON components(sn);   -- 不加唯一约束，重复只提示
 CREATE INDEX idx_components_asset ON components(asset_id);

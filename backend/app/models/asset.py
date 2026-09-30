@@ -56,6 +56,9 @@ class Asset(Base):
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 挂账人：仅交换机（type='switch'）使用；服务器整机不挂账。
+    holder_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    holder_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     dept_id: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
