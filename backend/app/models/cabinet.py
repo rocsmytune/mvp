@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
@@ -24,3 +24,14 @@ class Cabinet(Base):
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     dept_id: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    owner: Mapped["User | None"] = relationship()
+    room: Mapped["Room"] = relationship()
+
+    @property
+    def owner_name(self) -> str | None:
+        return self.owner.name if self.owner else None
+
+    @property
+    def room_code(self) -> str | None:
+        return self.room.code if self.room else None

@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy import or_
 
 from app.core.db import SessionLocal
 from app.core.security import hash_password
@@ -49,29 +50,39 @@ def _add_user(db, employee_no, name, role, password):
 
 
 def _cleanup_crud(db):
-    # 按外键依赖逆序删除：change_logs(operator_id)/components(asset_id)/assets(cabinet_id)
-    # /cabinets(owner_id,room_id)/rooms/users，避免 FK 违规。
+    # 按外键依赖逆序删除，避免 FK 违规。测试产生的 change_logs 均以测试用户为 operator，
+    # 故先按 operator 清掉全部 change_logs，再删部件/设备/机柜/机房/用户。
     user_ids = [
         r[0]
         for r in db.query(User.id)
         .filter(User.employee_no.in_(["910001", "910002", "910003"]))
         .all()
     ]
-    cab_ids = [
+    room_ids = [
         r[0]
-        for r in db.query(Cabinet.id)
-        .filter(Cabinet.name.in_(["T-A01-01", "T-A01-02"]))
+        for r in db.query(Room.id)
+        .filter(or_(Room.code == "T-ROOM-1", Room.code.like("T-RM-%")))
         .all()
+    ]
+    cab_filters = [
+        Cabinet.name.in_(["T-A01-01", "T-A01-02"]),
+        Cabinet.name.like("T-CAB-%"),
+    ]
+    if room_ids:
+        cab_filters.append(Cabinet.room_id.in_(room_ids))
+    cab_ids = [
+        r[0] for r in db.query(Cabinet.id).filter(or_(*cab_filters)).all()
     ]
     asset_ids = (
         [r[0] for r in db.query(Asset.id).filter(Asset.cabinet_id.in_(cab_ids)).all()]
         if cab_ids
         else []
     )
+    if user_ids:
+        db.query(ChangeLog).filter(ChangeLog.operator_id.in_(user_ids)).delete(
+            synchronize_session=False
+        )
     if asset_ids:
-        db.query(ChangeLog).filter(
-            ChangeLog.target_type == "asset", ChangeLog.target_id.in_(asset_ids)
-        ).delete(synchronize_session=False)
         db.query(Component).filter(Component.asset_id.in_(asset_ids)).delete(
             synchronize_session=False
         )
@@ -82,11 +93,11 @@ def _cleanup_crud(db):
         db.query(Cabinet).filter(Cabinet.id.in_(cab_ids)).delete(
             synchronize_session=False
         )
-    db.query(Room).filter(Room.code == "T-ROOM-1").delete(synchronize_session=False)
-    if user_ids:
-        db.query(ChangeLog).filter(ChangeLog.operator_id.in_(user_ids)).delete(
+    if room_ids:
+        db.query(Room).filter(Room.id.in_(room_ids)).delete(
             synchronize_session=False
         )
+    if user_ids:
         db.query(User).filter(User.id.in_(user_ids)).delete(
             synchronize_session=False
         )
