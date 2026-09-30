@@ -1,0 +1,202 @@
+from fastapi.testclient import TestClient
+
+from app.core.db import SessionLocal
+from app.main import app
+from app.models.asset import Asset
+from app.models.change_log import ChangeLog
+from app.models.user import User
+from app.schemas.asset import AssetUpdate
+from app.services import asset as asset_service
+
+
+def _auth(client, employee_no, password):
+    resp = client.post(
+        "/api/auth/login", json={"employee_no": employee_no, "password": password}
+    )
+    assert resp.status_code == 200, resp.text
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+def _create_payload(cabinet_id, u_start, u_end, **extra):
+    payload = {
+        "type": "server",
+        "cabinet_id": cabinet_id,
+        "u_start": u_start,
+        "u_end": u_end,
+    }
+    payload.update(extra)
+    return payload
+
+
+# ---------- 权限：三种角色 ----------
+
+
+def test_admin_can_create_asset(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        resp = client.post(
+            "/api/assets",
+            json=_create_payload(crud_users["cab_admin"].id, 1, 2, sn="SN-A-001"),
+            headers=h,
+        )
+    assert resp.status_code == 201
+    assert resp.json()["sn"] == "SN-A-001"
+
+
+def test_owner_can_create_in_own_cabinet(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910002", "owner-pass")
+        resp = client.post(
+            "/api/assets",
+            json=_create_payload(crud_users["cab_owner"].id, 3, 3, sn="SN-B-001"),
+            headers=h,
+        )
+    assert resp.status_code == 201
+
+
+def test_owner_cannot_create_in_other_cabinet(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910002", "owner-pass")
+        resp = client.post(
+            "/api/assets",
+            json=_create_payload(crud_users["cab_admin"].id, 1, 1),
+            headers=h,
+        )
+    assert resp.status_code == 403
+
+
+def test_member_cannot_create(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910003", "member-pass")
+        resp = client.post(
+            "/api/assets",
+            json=_create_payload(crud_users["cab_admin"].id, 1, 1),
+            headers=h,
+        )
+    assert resp.status_code == 403
+
+
+def test_member_cannot_delete(crud_users):
+    with TestClient(app) as client:
+        admin_h = _auth(client, "910001", "admin-pass")
+        created = client.post(
+            "/api/assets",
+            json=_create_payload(crud_users["cab_admin"].id, 5, 5, sn="SN-DEL-1"),
+            headers=admin_h,
+        ).json()
+        member_h = _auth(client, "910003", "member-pass")
+        resp = client.delete(f"/api/assets/{created['id']}", headers=member_h)
+    assert resp.status_code == 403
+
+
+# ---------- U 位校验 ----------
+
+
+def test_u_overlap_rejected(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        cid = crud_users["cab_admin"].id
+        r1 = client.post(
+            "/api/assets", json=_create_payload(cid, 10, 12), headers=h
+        )
+        assert r1.status_code == 201
+        r2 = client.post(
+            "/api/assets", json=_create_payload(cid, 12, 14), headers=h
+        )
+        assert r2.status_code == 409
+
+
+def test_u_out_of_range_rejected(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        resp = client.post(
+            "/api/assets",
+            json=_create_payload(crud_users["cab_admin"].id, 0, 2),
+            headers=h,
+        )
+    assert resp.status_code == 422
+
+
+def test_u_reversed_rejected(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        resp = client.post(
+            "/api/assets",
+            json=_create_payload(crud_users["cab_admin"].id, 22, 21),
+            headers=h,
+        )
+    assert resp.status_code == 422
+
+
+def test_cabinet_asset_requires_u(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        resp = client.post(
+            "/api/assets",
+            json={"type": "server", "cabinet_id": crud_users["cab_admin"].id},
+            headers=h,
+        )
+    assert resp.status_code == 422
+
+
+# ---------- ChangeLog ----------
+
+
+def test_changelog_on_create_update_delete(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        cid = crud_users["cab_admin"].id
+        created = client.post(
+            "/api/assets",
+            json=_create_payload(cid, 20, 20, sn="OLD-SN"),
+            headers=h,
+        ).json()
+        aid = created["id"]
+        client.patch(f"/api/assets/{aid}", json={"sn": "NEW-SN"}, headers=h)
+        client.delete(f"/api/assets/{aid}", headers=h)
+
+    db = SessionLocal()
+    try:
+        logs = (
+            db.query(ChangeLog)
+            .filter(ChangeLog.target_type == "asset", ChangeLog.target_id == aid)
+            .all()
+        )
+        actions = sorted(l.action for l in logs)
+        assert actions == ["create", "delete", "update"]
+        upd = next(l for l in logs if l.action == "update")
+        assert (upd.field, upd.old_value, upd.new_value) == ("sn", "OLD-SN", "NEW-SN")
+    finally:
+        db.close()
+
+
+# ---------- 字段来源保护（规则6） ----------
+
+
+def test_manual_field_not_overwritten_by_import_source(crud_users):
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.employee_no == "910001").first()
+        asset = Asset(
+            type="server",
+            cabinet_id=crud_users["cab_admin"].id,
+            u_start=40,
+            u_end=40,
+            sn="MANUAL-SN",
+        )
+        asset.field_source = {"sn": "manual"}
+        db.add(asset)
+        db.commit()
+        db.refresh(asset)
+
+        # import 来源不得覆盖 manual
+        asset_service.update_asset(db, admin, asset.id, AssetUpdate(sn="IMPORT-SN"), source="import")
+        db.refresh(asset)
+        assert asset.sn == "MANUAL-SN"
+
+        # manual 来源可正常覆盖
+        asset_service.update_asset(db, admin, asset.id, AssetUpdate(sn="MANUAL-SN-2"), source="manual")
+        db.refresh(asset)
+        assert asset.sn == "MANUAL-SN-2"
+    finally:
+        db.close()
