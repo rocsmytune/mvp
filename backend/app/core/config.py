@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     app_name: str = "机柜物料管理平台"
     # 开发默认连 localhost:5432（docker compose 里 db 服务映射的端口）。
     database_url: str = "postgresql+psycopg://mvp:mvp@localhost:5432/mvp"
-    secret_key: str = "dev-secret-change-me"
+    # 开发占位密钥；生产必须通过环境变量 SECRET_KEY 覆盖为随机强密钥。
+    secret_key: str = "dev-only-secret-key-000000000000000000000000000000000000000000"
     # 阶段1固定单部门，不做多租户。
     dept_id: int = 1
     access_token_expire_minutes: int = 60 * 24

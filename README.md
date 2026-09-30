@@ -14,6 +14,23 @@ docker compose up --build
 
 后端启动时自动执行 `alembic upgrade head` 建表。
 
+## 登录（开发账号）
+
+首次启动后创建种子账号（任选其一）：
+
+```bash
+docker compose exec backend python seed.py        # 推荐：无需本地 venv
+# 或
+cd backend && .venv/bin/python seed.py
+```
+
+| 工号 | 姓名 | 角色 | 密码 |
+|---|---|---|---|
+| 000001 | 管理员 | 总管理员 | admin123 |
+| 000002 | 柜主甲 | 柜主 | owner123 |
+| 000003 | 成员乙 | 普通成员 | member123 |
+
+
 ## 本地开发（不打包 Docker）
 
 后端：

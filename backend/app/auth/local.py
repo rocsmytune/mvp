@@ -1,13 +1,49 @@
-"""本地认证（骨架阶段为占位实现）。
+"""本地认证实现。业务代码只依赖 get_current_user，替换为 SSO 时无需改动业务代码。"""
 
-CLAUDE.md 要求：认证逻辑只放在 auth/，业务代码只依赖 get_current_user。
-后续「登录」功能会在此实现真实的工号+密码校验与令牌签发；
-本文件当前仅提供 get_current_user 契约，返回一个开发用管理员，方便骨架跑通。
-"""
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
 
+from app.core.db import get_db
+from app.core.security import decode_access_token, verify_password
 from app.models.user import User
 
+_bearer = HTTPBearer(auto_error=False)
 
-def get_current_user() -> User:
-    """TODO: 解析请求令牌并校验；骨架阶段先返回固定开发用户。"""
-    return User(employee_no="000000", name="开发管理员", role="admin", dept_id=1)
+
+def authenticate_user(db: Session, employee_no: str, password: str) -> User | None:
+    """校验工号+密码，成功返回用户，失败返回 None。"""
+    user = (
+        db.query(User)
+        .filter(User.employee_no == employee_no, User.active.is_(True))
+        .first()
+    )
+    if user is None or not user.password_hash:
+        return None
+    if not verify_password(password, user.password_hash):
+        return None
+    return user
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    db: Session = Depends(get_db),
+) -> User:
+    """从 Authorization: Bearer <token> 解析当前用户，并校验其仍有效。"""
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登录")
+    employee_no = decode_access_token(credentials.credentials)
+    if employee_no is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌无效或已过期"
+        )
+    user = (
+        db.query(User)
+        .filter(User.employee_no == employee_no, User.active.is_(True))
+        .first()
+    )
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不存在或已停用"
+        )
+    return user
