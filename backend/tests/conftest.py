@@ -82,6 +82,8 @@ def _cleanup_crud(db):
         db.query(ChangeLog).filter(ChangeLog.operator_id.in_(user_ids)).delete(
             synchronize_session=False
         )
+    # 待整理池设备（cabinet_id 为空）无法按机柜定位，按测试标记 sn 删除。
+    db.query(Asset).filter(Asset.sn.like("T-POOL-%")).delete(synchronize_session=False)
     if asset_ids:
         db.query(Component).filter(Component.asset_id.in_(asset_ids)).delete(
             synchronize_session=False

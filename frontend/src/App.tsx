@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, Card, Form, Input, Layout, Space, Tag, Typography } from 'antd'
+import { Button, Layout, Space, Tag, Typography } from 'antd'
 import { api } from './api/client'
-
-interface UserInfo {
-  employee_no: string
-  name: string
-  role: string
-}
+import type { UserInfo } from './api/types'
+import LoginPage from './pages/LoginPage'
+import OverviewPage from './pages/OverviewPage'
 
 const ROLE_LABEL: Record<string, string> = {
   admin: '总管理员',
@@ -17,10 +14,10 @@ const ROLE_LABEL: Record<string, string> = {
 export default function App() {
   const [user, setUser] = useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!localStorage.getItem('token')) {
+    const token = localStorage.getItem('token')
+    if (!token) {
       setLoading(false)
       return
     }
@@ -31,17 +28,6 @@ export default function App() {
       .finally(() => setLoading(false))
   }, [])
 
-  const onLogin = async (values: { employee_no: string; password: string }) => {
-    setError(null)
-    try {
-      const res = await api.post('/auth/login', values)
-      localStorage.setItem('token', res.data.access_token)
-      setUser(res.data.user)
-    } catch {
-      setError('登录失败：工号或密码错误')
-    }
-  }
-
   const onLogout = () => {
     localStorage.removeItem('token')
     setUser(null)
@@ -51,53 +37,35 @@ export default function App() {
     return <Layout style={{ minHeight: '100vh' }} />
   }
 
+  if (!user) {
+    return <LoginPage onLogin={setUser} />
+  }
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Layout.Content style={{ padding: 48, maxWidth: 480, margin: '0 auto', width: '100%' }}>
-        {user ? (
-          <Card title="机柜物料管理平台">
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              <Typography.Text>
-                欢迎，{user.name}（{user.employee_no}）
-              </Typography.Text>
-              <Space>
-                <Typography.Text>角色：</Typography.Text>
-                <Tag color="blue">{ROLE_LABEL[user.role] ?? user.role}</Tag>
-              </Space>
-              <Button type="primary" onClick={onLogout}>
-                退出登录
-              </Button>
-            </Space>
-          </Card>
-        ) : (
-          <Card title="登录">
-            {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} showIcon />}
-            <Form onFinish={onLogin} layout="vertical">
-              <Form.Item
-                name="employee_no"
-                label="工号"
-                rules={[{ required: true, message: '请输入工号' }]}
-              >
-                <Input placeholder="工号" autoFocus />
-              </Form.Item>
-              <Form.Item
-                name="password"
-                label="密码"
-                rules={[{ required: true, message: '请输入密码' }]}
-              >
-                <Input.Password placeholder="密码" />
-              </Form.Item>
-              <Form.Item>
-                <Button type="primary" htmlType="submit" block>
-                  登录
-                </Button>
-              </Form.Item>
-            </Form>
-            <Button block disabled>
-              SSO 登录（预留）
-            </Button>
-          </Card>
-        )}
+      <Layout.Header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: '#001529',
+        }}
+      >
+        <Typography.Title level={4} style={{ color: '#fff', margin: 0 }}>
+          机柜物料管理平台
+        </Typography.Title>
+        <Space>
+          <Typography.Text style={{ color: '#fff' }}>
+            {user.name}（{user.employee_no}）
+          </Typography.Text>
+          <Tag color="blue">{ROLE_LABEL[user.role] ?? user.role}</Tag>
+          <Button size="small" onClick={onLogout}>
+            退出登录
+          </Button>
+        </Space>
+      </Layout.Header>
+      <Layout.Content style={{ padding: 24 }}>
+        <OverviewPage />
       </Layout.Content>
     </Layout>
   )
