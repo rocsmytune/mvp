@@ -54,6 +54,8 @@ class AssetOut(BaseModel):
     pool_reason: str | None
     field_source: dict
     remark: str | None
+    holder_id: int | None
+    holder_name: str | None
     created_at: datetime
     updated_at: datetime
 

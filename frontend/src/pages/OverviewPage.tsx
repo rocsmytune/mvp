@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, Col, Empty, message, Progress, Row, Select, Space, Spin, Statistic, Typography } from 'antd'
 import { fetchOverview } from '../api'
-import type { Overview } from '../api/types'
+import type { CabinetSummary, Overview } from '../api/types'
+import CabinetDrawer from '../components/CabinetDrawer'
 
 export default function OverviewPage() {
   const [data, setData] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
   const [roomId, setRoomId] = useState<number | undefined>(undefined)
   const [zone, setZone] = useState<string | undefined>(undefined)
+  const [selectedCabinet, setSelectedCabinet] = useState<CabinetSummary | null>(null)
 
   useEffect(() => {
     fetchOverview()
@@ -48,6 +50,7 @@ export default function OverviewPage() {
   const totalDevices = data.placed_count + data.pool_count
 
   return (
+    <>
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       <Row gutter={16}>
         <Col xs={12} md={6}>
@@ -72,7 +75,7 @@ export default function OverviewPage() {
         </Col>
       </Row>
 
-      <Card title="机房总览" extra="点击机柜查看详情（开发中）">
+      <Card title="机房总览" extra="点击机柜查看 U 位图与设备详情">
         <Space style={{ marginBottom: 16 }} wrap>
           <Select
             placeholder="按机房筛选"
@@ -104,7 +107,7 @@ export default function OverviewPage() {
                   <Card
                     size="small"
                     hoverable
-                    onClick={() => message.info(`机柜 ${c.name} 详情开发中`)}
+                    onClick={() => setSelectedCabinet(c)}
                   >
                     <Space direction="vertical" style={{ width: '100%' }} size={4}>
                       <Typography.Text strong>{c.name}</Typography.Text>
@@ -129,5 +132,7 @@ export default function OverviewPage() {
         )}
       </Card>
     </Space>
+    <CabinetDrawer cabinet={selectedCabinet} onClose={() => setSelectedCabinet(null)} />
+    </>
   )
 }

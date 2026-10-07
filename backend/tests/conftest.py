@@ -7,6 +7,7 @@ from app.models.asset import Asset
 from app.models.cabinet import Cabinet
 from app.models.change_log import ChangeLog
 from app.models.component import Component
+from app.models.import_batch import ImportBatch
 from app.models.room import Room
 from app.models.user import User
 
@@ -80,6 +81,9 @@ def _cleanup_crud(db):
     )
     if user_ids:
         db.query(ChangeLog).filter(ChangeLog.operator_id.in_(user_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(ImportBatch).filter(ImportBatch.operator_id.in_(user_ids)).delete(
             synchronize_session=False
         )
     # 待整理池设备（cabinet_id 为空）无法按机柜定位，按测试标记 sn 删除。

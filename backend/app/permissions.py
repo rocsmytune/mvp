@@ -24,19 +24,25 @@ def require_admin(user: User) -> None:
         )
 
 
-def ensure_can_manage_cabinet(user: User, cabinet: Cabinet | None) -> None:
-    """校验能否管理某机柜及其下资产。
+def can_manage_cabinet(user: User, cabinet: Cabinet | None) -> bool:
+    """判断能否管理某机柜及其下资产（只读谓词，供导入等按行判定复用）。
 
     cabinet 为 None 表示待整理池资产（无归属机柜），此时仅 admin 可操作。
     """
     if user.role == ROLE_ADMIN:
-        return
+        return True
     if (
         cabinet is not None
         and user.role == ROLE_CABINET_OWNER
         and cabinet.owner_id == user.id
     ):
-        return
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN, detail="无权操作该机柜及其资产"
-    )
+        return True
+    return False
+
+
+def ensure_can_manage_cabinet(user: User, cabinet: Cabinet | None) -> None:
+    """校验能否管理某机柜及其下资产，无权限则抛 403。"""
+    if not can_manage_cabinet(user, cabinet):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="无权操作该机柜及其资产"
+        )

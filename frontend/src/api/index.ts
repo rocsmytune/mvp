@@ -1,8 +1,60 @@
 import { api } from './client'
-import type { Overview } from './types'
+import type {
+  Asset,
+  Component,
+  ExportSnapshot,
+  ImportBatch,
+  ImportConfirmResponse,
+  ImportRow,
+  ImportUploadResponse,
+  Overview,
+} from './types'
 
 // 机房总览：一次拉取机房、机柜、设备统计与已上架/待整理数量。
 export async function fetchOverview(): Promise<Overview> {
   const res = await api.get<Overview>('/overview')
+  return res.data
+}
+
+// 某机柜下的设备列表（详情抽屉用）。
+export async function fetchAssets(cabinetId: number): Promise<Asset[]> {
+  const res = await api.get<{ total: number; items: Asset[] }>('/assets', {
+    params: { cabinet_id: cabinetId, limit: 200 },
+  })
+  return res.data.items
+}
+
+// 某设备下的部件列表（详情抽屉用）。
+export async function fetchComponents(assetId: number): Promise<Component[]> {
+  const res = await api.get<{ total: number; items: Component[] }>('/components', {
+    params: { asset_id: assetId, limit: 500 },
+  })
+  return res.data.items
+}
+
+// 上传物料表（rows 已由前端解析），返回预览 + 批次号。
+export async function uploadImport(
+  rows: ImportRow[],
+  file_name: string | null,
+): Promise<ImportUploadResponse> {
+  const res = await api.post<ImportUploadResponse>('/import/upload', { file_name, rows })
+  return res.data
+}
+
+// 确认入库：把 previewed 批次落库，返回每行结果。
+export async function confirmImport(batchId: number): Promise<ImportConfirmResponse> {
+  const res = await api.post<ImportConfirmResponse>('/import/confirm', { batch_id: batchId })
+  return res.data
+}
+
+// 导入批次历史（admin 看全部，其余角色只看自己的）。
+export async function fetchImportBatches(): Promise<{ total: number; items: ImportBatch[] }> {
+  const res = await api.get<{ total: number; items: ImportBatch[] }>('/import/batches')
+  return res.data
+}
+
+// 导出备份快照（仅总管理员，只读）：机柜 / 资产 / 部件三层业务键。
+export async function fetchExportSnapshot(): Promise<ExportSnapshot> {
+  const res = await api.get<ExportSnapshot>('/export/snapshot')
   return res.data
 }

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Button, Layout, Space, Tag, Typography } from 'antd'
+import { Button, Layout, Menu, Space, Tag, Typography } from 'antd'
 import { api } from './api/client'
 import type { UserInfo } from './api/types'
 import LoginPage from './pages/LoginPage'
 import OverviewPage from './pages/OverviewPage'
+import ImportCenterPage from './pages/ImportCenterPage'
 
 const ROLE_LABEL: Record<string, string> = {
   admin: '总管理员',
@@ -11,9 +12,12 @@ const ROLE_LABEL: Record<string, string> = {
   member: '普通成员',
 }
 
+type PageKey = 'overview' | 'import'
+
 export default function App() {
   const [user, setUser] = useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState<PageKey>('overview')
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -31,6 +35,7 @@ export default function App() {
   const onLogout = () => {
     localStorage.removeItem('token')
     setUser(null)
+    setPage('overview')
   }
 
   if (loading) {
@@ -41,6 +46,13 @@ export default function App() {
     return <LoginPage onLogin={setUser} />
   }
 
+  // 前端按角色隐藏入口只是体验优化，真正权限由后端强制（成员调接口会 403）。
+  const canImport = user.role !== 'member'
+  const menuItems = [
+    { key: 'overview', label: '机房总览' },
+    ...(canImport ? [{ key: 'import', label: '导入中心' }] : []),
+  ]
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Layout.Header
@@ -49,11 +61,22 @@ export default function App() {
           alignItems: 'center',
           justifyContent: 'space-between',
           background: '#001529',
+          paddingInline: 24,
         }}
       >
-        <Typography.Title level={4} style={{ color: '#fff', margin: 0 }}>
-          机柜物料管理平台
-        </Typography.Title>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <Typography.Title level={4} style={{ color: '#fff', margin: 0, whiteSpace: 'nowrap' }}>
+            机柜物料管理平台
+          </Typography.Title>
+          <Menu
+            theme="dark"
+            mode="horizontal"
+            selectedKeys={[page]}
+            onClick={({ key }) => setPage(key as PageKey)}
+            items={menuItems}
+            style={{ minWidth: 240, background: 'transparent', borderBottom: 'none' }}
+          />
+        </div>
         <Space>
           <Typography.Text style={{ color: '#fff' }}>
             {user.name}（{user.employee_no}）
@@ -65,7 +88,7 @@ export default function App() {
         </Space>
       </Layout.Header>
       <Layout.Content style={{ padding: 24 }}>
-        <OverviewPage />
+        {page === 'import' ? <ImportCenterPage isAdmin={user.role === 'admin'} /> : <OverviewPage />}
       </Layout.Content>
     </Layout>
   )

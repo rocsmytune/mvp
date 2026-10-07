@@ -30,9 +30,13 @@ class ComponentOut(BaseModel):
     category: str
     sn: str | None
     model: str | None
+    name: str | None
+    material_code: str | None
     qty: int
     sn_source: str
     remark: str | None
+    holder_id: int | None
+    holder_name: str | None
     updated_at: datetime
 
 
