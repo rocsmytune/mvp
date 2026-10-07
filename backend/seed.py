@@ -11,7 +11,8 @@ from app.models.user import User
 
 # (工号, 姓名, 角色, 密码) —— 均为构造数据，仅用于开发/测试。
 SEED_USERS = [
-    ("000001", "管理员", "admin", "admin123"),
+    ("000004", "系统管理员", "system_admin", "sysadmin123"),
+    ("000001", "物料管理员", "material_admin", "admin123"),
     ("000002", "柜主甲", "cabinet_owner", "owner123"),
     ("000003", "成员乙", "member", "member123"),
 ]
@@ -36,7 +37,7 @@ def seed() -> None:
                 print(f"已存在 {employee_no} {name}，跳过")
         db.commit()
 
-        # 演示机房 + 机柜（构造数据）：A01-01 归属柜主甲，A01-02 归属管理员
+        # 演示机房 + 机柜（构造数据）：A01-01 归属柜主甲，A01-02 归属物料管理员
         owner = db.query(User).filter(User.employee_no == "000002").first()
         admin = db.query(User).filter(User.employee_no == "000001").first()
         room = db.query(Room).filter(Room.code == "TEST-01").first()

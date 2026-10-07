@@ -36,9 +36,9 @@ def test_asset_changelog_flow(crud_users):
         assert [l["action"] for l in logs] == ["update", "create"]
         upd = logs[0]
         assert (upd["field"], upd["old_value"], upd["new_value"]) == ("sn", "LOG-SN-1", "LOG-SN-2")
-        assert upd["operator_name"] == "测试管理员"
+        assert upd["operator_name"] == "测试物料管理员"
         assert logs[1]["action"] == "create"
-        assert logs[1]["operator_name"] == "测试管理员"
+        assert logs[1]["operator_name"] == "测试物料管理员"
 
 
 def test_member_can_view_changelog(crud_users):

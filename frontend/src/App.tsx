@@ -5,15 +5,20 @@ import type { UserInfo } from './api/types'
 import LoginPage from './pages/LoginPage'
 import OverviewPage from './pages/OverviewPage'
 import ImportCenterPage from './pages/ImportCenterPage'
+import UserManagePage from './pages/UserManagePage'
 import GlobalSearch from './components/GlobalSearch'
 
 const ROLE_LABEL: Record<string, string> = {
-  admin: '总管理员',
+  system_admin: '系统管理员',
+  material_admin: '物料管理员',
   cabinet_owner: '柜主',
-  member: '普通成员',
+  member: '成员',
 }
 
-type PageKey = 'overview' | 'import'
+// 业务管理员（系统管理员 / 物料管理员）：具备物料/机柜/导入/导出权限。
+const isBusinessAdmin = (role: string) => role === 'system_admin' || role === 'material_admin'
+
+type PageKey = 'overview' | 'import' | 'users'
 
 export default function App() {
   const [user, setUser] = useState<UserInfo | null>(null)
@@ -59,6 +64,7 @@ export default function App() {
   const menuItems = [
     { key: 'overview', label: '机房总览' },
     ...(canImport ? [{ key: 'import', label: '导入中心' }] : []),
+    ...(user.role === 'system_admin' ? [{ key: 'users', label: '用户管理' }] : []),
   ]
 
   return (
@@ -99,7 +105,9 @@ export default function App() {
       </Layout.Header>
       <Layout.Content style={{ padding: 24 }}>
         {page === 'import' ? (
-          <ImportCenterPage isAdmin={user.role === 'admin'} />
+          <ImportCenterPage isAdmin={isBusinessAdmin(user.role)} />
+        ) : page === 'users' ? (
+          <UserManagePage />
         ) : (
           <OverviewPage
             user={user}

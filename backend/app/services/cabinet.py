@@ -1,4 +1,4 @@
-"""机柜（Cabinet）业务逻辑。写操作仅总管理员，统一写 ChangeLog。"""
+"""机柜（Cabinet）业务逻辑。写操作仅管理员，统一写 ChangeLog。"""
 
 from datetime import datetime, timezone
 

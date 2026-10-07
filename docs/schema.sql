@@ -5,7 +5,7 @@ CREATE TABLE users (
   id            SERIAL PRIMARY KEY,
   employee_no   VARCHAR(32) UNIQUE NOT NULL,         -- 工号，用户主键语义
   name          VARCHAR(64) NOT NULL,
-  role          VARCHAR(16) NOT NULL CHECK (role IN ('admin','cabinet_owner','member')),
+  role          VARCHAR(16) NOT NULL CHECK (role IN ('system_admin','material_admin','cabinet_owner','member')),
   auth_source   VARCHAR(16) NOT NULL DEFAULT 'local', -- local / sso
   password_hash VARCHAR(255),
   active        BOOLEAN NOT NULL DEFAULT TRUE,

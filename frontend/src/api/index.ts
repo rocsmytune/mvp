@@ -14,6 +14,9 @@ import type {
   ImportUploadResponse,
   Overview,
   SearchResult,
+  UserAdmin,
+  UserCreatePayload,
+  UserUpdatePayload,
 } from './types'
 
 // 机房总览：一次拉取机房、机柜、设备统计与已上架/待整理数量。
@@ -47,6 +50,26 @@ export async function fetchAssetChangelogs(assetId: number): Promise<ChangeLogEn
 // 全局搜索：整机SN / 部件SN / 带内IP / 带外IP / 资产编号。
 export async function searchGlobal(q: string): Promise<SearchResult[]> {
   const res = await api.get<SearchResult[]>('/search', { params: { q } })
+  return res.data
+}
+
+// ---------- 用户管理（仅系统管理员） ----------
+
+export async function fetchUsers(params?: {
+  q?: string
+  role?: string
+}): Promise<{ total: number; items: UserAdmin[] }> {
+  const res = await api.get<{ total: number; items: UserAdmin[] }>('/users', { params })
+  return res.data
+}
+
+export async function createUser(data: UserCreatePayload): Promise<UserAdmin> {
+  const res = await api.post<UserAdmin>('/users', data)
+  return res.data
+}
+
+export async function updateUser(id: number, data: UserUpdatePayload): Promise<UserAdmin> {
+  const res = await api.patch<UserAdmin>(`/users/${id}`, data)
   return res.data
 }
 
@@ -101,7 +124,7 @@ export async function fetchImportBatches(): Promise<{ total: number; items: Impo
   return res.data
 }
 
-// 导出备份快照（仅总管理员，只读）：机柜 / 资产 / 部件三层业务键。
+// 导出备份快照（仅管理员，只读）：机柜 / 资产 / 部件三层业务键。
 export async function fetchExportSnapshot(): Promise<ExportSnapshot> {
   const res = await api.get<ExportSnapshot>('/export/snapshot')
   return res.data

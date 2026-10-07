@@ -7,6 +7,32 @@ export interface UserInfo {
   role: string
 }
 
+// ---------- 用户管理（仅系统管理员） ----------
+
+export interface UserAdmin {
+  id: number
+  employee_no: string
+  name: string
+  role: string
+  active: boolean
+  auth_source: string
+  created_at: string
+}
+
+export interface UserCreatePayload {
+  employee_no: string
+  name: string
+  role: string
+  password: string
+}
+
+export interface UserUpdatePayload {
+  name?: string | null
+  role?: string | null
+  password?: string | null
+  active?: boolean | null
+}
+
 export interface Room {
   id: number
   city: string | null

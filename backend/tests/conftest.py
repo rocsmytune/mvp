@@ -71,7 +71,7 @@ def test_user():
         user = User(
             employee_no=TEST_EMPLOYEE_NO,
             name="测试用户",
-            role="admin",
+            role="material_admin",
             password_hash=hash_password(TEST_PASSWORD),
         )
         db.add(user)
@@ -102,7 +102,7 @@ def _cleanup_crud(db):
     user_ids = [
         r[0]
         for r in db.query(User.id)
-        .filter(User.employee_no.in_(["910001", "910002", "910003"]))
+        .filter(User.employee_no.in_(["910001", "910002", "910003", "910004"]))
         .all()
     ]
     room_ids = [
@@ -158,12 +158,13 @@ def _cleanup_crud(db):
 
 @pytest.fixture
 def crud_users():
-    """三种角色用户 + 一个机房 + 两个机柜（分别归属 admin 与 owner），供 CRUD/权限测试。"""
+    """四种角色用户 + 一个机房 + 两个机柜（分别归属 admin 与 owner），供 CRUD/权限测试。"""
     db = SessionLocal()
     try:
-        admin = _add_user(db, "910001", "测试管理员", "admin", "admin-pass")
+        admin = _add_user(db, "910001", "测试物料管理员", "material_admin", "admin-pass")
         owner = _add_user(db, "910002", "测试柜主", "cabinet_owner", "owner-pass")
         member = _add_user(db, "910003", "测试成员", "member", "member-pass")
+        system_admin = _add_user(db, "910004", "测试系统管理员", "system_admin", "sysadmin-pass")
         db.flush()
         room = Room(city="测试市", code="T-ROOM-1", zone="测试区")
         db.add(room)
@@ -179,12 +180,14 @@ def crud_users():
         db.refresh(admin)
         db.refresh(owner)
         db.refresh(member)
+        db.refresh(system_admin)
         db.refresh(cab_owner)
         db.refresh(cab_admin)
         yield {
             "admin": admin,
             "owner": owner,
             "member": member,
+            "system_admin": system_admin,
             "cab_owner": cab_owner,
             "cab_admin": cab_admin,
         }

@@ -18,7 +18,7 @@ from app.models.cabinet import Cabinet
 from app.models.component import Component
 from app.models.import_batch import ImportBatch
 from app.models.user import User
-from app.permissions import ROLE_ADMIN, ROLE_MEMBER, can_manage_cabinet
+from app.permissions import ADMIN_ROLES, ROLE_MEMBER, can_manage_cabinet
 from app.services import changelog
 
 
@@ -271,7 +271,7 @@ def commit(db: Session, operator: User, batch_id: int) -> dict:
 
 def list_batches(db: Session, operator: User) -> tuple[list[ImportBatch], int]:
     query = db.query(ImportBatch)
-    if operator.role != ROLE_ADMIN:
+    if operator.role not in ADMIN_ROLES:
         query = query.filter(ImportBatch.operator_id == operator.id)
     total = query.count()
     items = query.order_by(ImportBatch.id.desc()).limit(100).all()

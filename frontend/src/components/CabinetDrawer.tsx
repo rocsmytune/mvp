@@ -133,9 +133,10 @@ function CabinetBody({
   const [createOpen, setCreateOpen] = useState(false)
   const [createU, setCreateU] = useState(1)
 
-  // 与后端 can_manage_cabinet 对齐：admin 全权 / 该柜柜主本人。
+  // 与后端 can_manage_cabinet 对齐：两个管理员角色全权 / 该柜柜主本人。
   const canManage =
-    user.role === 'admin' ||
+    user.role === 'system_admin' ||
+    user.role === 'material_admin' ||
     (user.role === 'cabinet_owner' && cabinet.owner_id === user.id)
 
   function reloadAssets() {

@@ -16,7 +16,7 @@ def test_login_success(test_user):
     assert body["access_token"]
     assert body["token_type"] == "bearer"
     assert body["user"]["employee_no"] == test_user.employee_no
-    assert body["user"]["role"] == "admin"
+    assert body["user"]["role"] == "material_admin"
 
 
 def test_login_wrong_password(test_user):

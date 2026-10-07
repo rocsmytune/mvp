@@ -16,6 +16,6 @@ def get_snapshot(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """导出全量备份快照（仅总管理员）。"""
+    """导出全量备份快照（仅管理员）。"""
     require_admin(user)
     return export_service.get_snapshot(db)

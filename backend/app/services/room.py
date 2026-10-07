@@ -1,4 +1,4 @@
-"""机房（Room）业务逻辑。写操作仅总管理员，统一写 ChangeLog。"""
+"""机房（Room）业务逻辑。写操作仅管理员，统一写 ChangeLog。"""
 
 from datetime import datetime, timezone
 
