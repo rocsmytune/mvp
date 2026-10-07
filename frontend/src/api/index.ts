@@ -13,6 +13,7 @@ import type {
   ImportRow,
   ImportUploadResponse,
   Overview,
+  SearchResult,
 } from './types'
 
 // 机房总览：一次拉取机房、机柜、设备统计与已上架/待整理数量。
@@ -40,6 +41,12 @@ export async function fetchComponents(assetId: number): Promise<Component[]> {
 // 某设备的变更日志（按时间倒序）。
 export async function fetchAssetChangelogs(assetId: number): Promise<ChangeLogEntry[]> {
   const res = await api.get<ChangeLogEntry[]>(`/assets/${assetId}/changelogs`)
+  return res.data
+}
+
+// 全局搜索：整机SN / 部件SN / 带内IP / 带外IP / 资产编号。
+export async function searchGlobal(q: string): Promise<SearchResult[]> {
+  const res = await api.get<SearchResult[]>('/search', { params: { q } })
   return res.data
 }
 

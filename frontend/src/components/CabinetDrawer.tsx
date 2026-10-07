@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Button,
   Descriptions,
@@ -75,11 +75,18 @@ function sourceTag(fs: Record<string, string>, key: string) {
 interface CabinetDrawerProps {
   cabinet: CabinetSummary | null
   user: UserInfo
+  initialAssetId?: number | null
   onClose: () => void
   onChanged?: () => void
 }
 
-export default function CabinetDrawer({ cabinet, user, onClose, onChanged }: CabinetDrawerProps) {
+export default function CabinetDrawer({
+  cabinet,
+  user,
+  initialAssetId,
+  onClose,
+  onChanged,
+}: CabinetDrawerProps) {
   return (
     <Drawer
       open={cabinet !== null}
@@ -89,7 +96,13 @@ export default function CabinetDrawer({ cabinet, user, onClose, onChanged }: Cab
       title={cabinet ? `机柜 ${cabinet.name}` : ''}
     >
       {cabinet && (
-        <CabinetBody key={cabinet.id} cabinet={cabinet} user={user} onChanged={onChanged} />
+        <CabinetBody
+          key={cabinet.id}
+          cabinet={cabinet}
+          user={user}
+          initialAssetId={initialAssetId}
+          onChanged={onChanged}
+        />
       )}
     </Drawer>
   )
@@ -98,10 +111,12 @@ export default function CabinetDrawer({ cabinet, user, onClose, onChanged }: Cab
 function CabinetBody({
   cabinet,
   user,
+  initialAssetId,
   onChanged,
 }: {
   cabinet: CabinetSummary
   user: UserInfo
+  initialAssetId?: number | null
   onChanged?: () => void
 }) {
   const [view, setView] = useState<'cabinet' | 'asset'>('cabinet')
@@ -161,6 +176,17 @@ function CabinetBody({
     reloadComponents(a.id)
     reloadLogs(a.id)
   }
+
+  // 搜索跳转：资产列表加载后，若命中目标设备则自动打开其详情（每个 id 只触发一次）。
+  const lastOpenedInitial = useRef<number | null>(null)
+  useEffect(() => {
+    if (initialAssetId == null || lastOpenedInitial.current === initialAssetId) return
+    const target = assets.find((x) => x.id === initialAssetId)
+    if (target) {
+      lastOpenedInitial.current = initialAssetId
+      openAsset(target)
+    }
+  }, [assets, initialAssetId])
 
   function onAssetSaved(updated: Asset) {
     setSelected(updated)

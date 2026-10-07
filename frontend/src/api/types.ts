@@ -140,6 +140,32 @@ export interface ChangeLogEntry {
   created_at: string
 }
 
+// ---------- 全局搜索 ----------
+
+export interface SearchResult {
+  kind: 'asset' | 'component'
+  matched_field: string // sn / asset_tag / ip_inband / bmc_ip / component_sn
+  room_code: string | null
+  cabinet_id: number | null
+  cabinet_name: string | null
+  u_start: number | null
+  u_end: number | null
+  owner_name: string | null
+  asset_id: number
+  asset_type: string
+  asset_sn: string | null
+  asset_tag: string | null
+  model: string | null
+  ip_inband: string | null
+  bmc_ip: string | null
+  status: string
+  in_pool: boolean
+  component_id: number | null
+  component_category: string | null
+  component_sn: string | null
+  component_name: string | null
+}
+
 // ---------- 手工物料导入 ----------
 
 // 8 列原始行（与后端 importer.parse 的键一致）

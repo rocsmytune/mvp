@@ -5,6 +5,7 @@ import type { UserInfo } from './api/types'
 import LoginPage from './pages/LoginPage'
 import OverviewPage from './pages/OverviewPage'
 import ImportCenterPage from './pages/ImportCenterPage'
+import GlobalSearch from './components/GlobalSearch'
 
 const ROLE_LABEL: Record<string, string> = {
   admin: '总管理员',
@@ -18,6 +19,8 @@ export default function App() {
   const [user, setUser] = useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState<PageKey>('overview')
+  // 搜索命中后跳转目标：打开对应机柜抽屉并选中该设备。
+  const [focus, setFocus] = useState<{ cabinetId: number; assetId: number } | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -36,6 +39,11 @@ export default function App() {
     localStorage.removeItem('token')
     setUser(null)
     setPage('overview')
+  }
+
+  const handleSearchNavigate = (cabinetId: number, assetId: number) => {
+    setPage('overview')
+    setFocus({ cabinetId, assetId })
   }
 
   if (loading) {
@@ -60,6 +68,7 @@ export default function App() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 24,
           background: '#001529',
           paddingInline: 24,
         }}
@@ -77,6 +86,7 @@ export default function App() {
             style={{ minWidth: 240, background: 'transparent', borderBottom: 'none' }}
           />
         </div>
+        <GlobalSearch onNavigate={handleSearchNavigate} />
         <Space>
           <Typography.Text style={{ color: '#fff' }}>
             {user.name}（{user.employee_no}）
@@ -88,7 +98,15 @@ export default function App() {
         </Space>
       </Layout.Header>
       <Layout.Content style={{ padding: 24 }}>
-        {page === 'import' ? <ImportCenterPage isAdmin={user.role === 'admin'} /> : <OverviewPage user={user} />}
+        {page === 'import' ? (
+          <ImportCenterPage isAdmin={user.role === 'admin'} />
+        ) : (
+          <OverviewPage
+            user={user}
+            focus={focus}
+            onFocusHandled={() => setFocus(null)}
+          />
+        )}
       </Layout.Content>
     </Layout>
   )

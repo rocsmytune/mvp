@@ -4,12 +4,20 @@ import { fetchOverview } from '../api'
 import type { CabinetSummary, Overview, UserInfo } from '../api/types'
 import CabinetDrawer from '../components/CabinetDrawer'
 
-export default function OverviewPage({ user }: { user: UserInfo }) {
+interface OverviewPageProps {
+  user: UserInfo
+  // 全局搜索命中：打开指定机柜抽屉并选中该设备（一次性，消费后回调清空）。
+  focus?: { cabinetId: number; assetId: number } | null
+  onFocusHandled?: () => void
+}
+
+export default function OverviewPage({ user, focus, onFocusHandled }: OverviewPageProps) {
   const [data, setData] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
   const [roomId, setRoomId] = useState<number | undefined>(undefined)
   const [zone, setZone] = useState<string | undefined>(undefined)
   const [selectedCabinet, setSelectedCabinet] = useState<CabinetSummary | null>(null)
+  const [focusAssetId, setFocusAssetId] = useState<number | null>(null)
 
   const load = async () => {
     try {
@@ -22,6 +30,19 @@ export default function OverviewPage({ user }: { user: UserInfo }) {
   useEffect(() => {
     load().finally(() => setLoading(false))
   }, [])
+
+  // 消费搜索命中：找到机柜开抽屉，并记录要选中的设备。
+  useEffect(() => {
+    if (!focus || !data) return
+    const cab = data.cabinets.find((c) => c.id === focus.cabinetId)
+    if (cab) {
+      setSelectedCabinet(cab)
+      setFocusAssetId(focus.assetId)
+    } else {
+      message.warning('未找到对应机柜（可能已被删除）')
+    }
+    onFocusHandled?.()
+  }, [focus, data, onFocusHandled])
 
   const roomById = useMemo(
     () => new Map((data?.rooms ?? []).map((r) => [r.id, r])),
@@ -140,7 +161,11 @@ export default function OverviewPage({ user }: { user: UserInfo }) {
     <CabinetDrawer
       cabinet={selectedCabinet}
       user={user}
-      onClose={() => setSelectedCabinet(null)}
+      initialAssetId={focusAssetId}
+      onClose={() => {
+        setSelectedCabinet(null)
+        setFocusAssetId(null)
+      }}
       onChanged={load}
     />
     </>
