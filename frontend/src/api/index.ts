@@ -1,7 +1,9 @@
 import { api } from './client'
 import type {
   Asset,
+  AssetCreatePayload,
   AssetUpdatePayload,
+  ChangeLogEntry,
   Component,
   ComponentCreatePayload,
   ComponentUpdatePayload,
@@ -35,7 +37,18 @@ export async function fetchComponents(assetId: number): Promise<Component[]> {
   return res.data.items
 }
 
+// 某设备的变更日志（按时间倒序）。
+export async function fetchAssetChangelogs(assetId: number): Promise<ChangeLogEntry[]> {
+  const res = await api.get<ChangeLogEntry[]>(`/assets/${assetId}/changelogs`)
+  return res.data
+}
+
 // ---------- 编辑入口：资产/部件写操作（复用已有 CRUD 接口） ----------
+
+export async function createAsset(data: AssetCreatePayload): Promise<Asset> {
+  const res = await api.post<Asset>('/assets', data)
+  return res.data
+}
 
 export async function updateAsset(id: number, data: AssetUpdatePayload): Promise<Asset> {
   const res = await api.patch<Asset>(`/assets/${id}`, data)

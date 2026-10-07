@@ -34,3 +34,31 @@ def log(
             batch_id=batch_id,
         )
     )
+
+
+def list_for_asset(db: Session, asset_id: int) -> list[dict]:
+    """某资产的变更日志（含操作人姓名），按时间倒序。只读，不做角色过滤（与其它读接口一致）。"""
+    rows = (
+        db.query(ChangeLog, User.name)
+        .outerjoin(User, User.id == ChangeLog.operator_id)
+        .filter(ChangeLog.target_type == "asset", ChangeLog.target_id == asset_id)
+        .order_by(ChangeLog.created_at.desc(), ChangeLog.id.desc())
+        .all()
+    )
+    return [
+        {
+            "id": log.id,
+            "target_type": log.target_type,
+            "target_id": log.target_id,
+            "action": log.action,
+            "field": log.field,
+            "old_value": log.old_value,
+            "new_value": log.new_value,
+            "source": log.source,
+            "operator_id": log.operator_id,
+            "operator_name": operator_name,
+            "batch_id": log.batch_id,
+            "created_at": log.created_at,
+        }
+        for log, operator_name in rows
+    ]

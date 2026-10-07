@@ -5,7 +5,9 @@ from app.auth.local import get_current_user
 from app.core.db import get_db
 from app.models.user import User
 from app.schemas.asset import AssetCreate, AssetListOut, AssetOut, AssetUpdate
+from app.schemas.changelog import ChangeLogOut
 from app.services import asset as asset_service
+from app.services import changelog
 
 router = APIRouter(prefix="/api/assets", tags=["assets"])
 
@@ -49,6 +51,17 @@ def get_asset(
     user: User = Depends(get_current_user),
 ):
     return asset_service.get_asset(db, asset_id)
+
+
+@router.get("/{asset_id}/changelogs", response_model=list[ChangeLogOut])
+def list_asset_changelogs(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # 校验资产存在（不存在/已删除则 404），再返回其变更日志。
+    asset_service.get_asset(db, asset_id)
+    return changelog.list_for_asset(db, asset_id)
 
 
 @router.patch("/{asset_id}", response_model=AssetOut)

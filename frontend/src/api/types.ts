@@ -91,6 +91,21 @@ export interface AssetUpdatePayload {
   remark?: string | null
 }
 
+export interface AssetCreatePayload {
+  type: 'server' | 'switch'
+  cabinet_id: number
+  u_start: number
+  u_end: number
+  sn?: string | null
+  asset_tag?: string | null
+  model?: string | null
+  cpu_model?: string | null
+  ip_inband?: string | null
+  bmc_ip?: string | null
+  status?: string
+  remark?: string | null
+}
+
 export interface ComponentCreatePayload {
   asset_id: number
   category: string
@@ -106,6 +121,23 @@ export interface ComponentUpdatePayload {
   model?: string | null
   qty?: number | null
   remark?: string | null
+}
+
+// ---------- 变更日志 ----------
+
+export interface ChangeLogEntry {
+  id: number
+  target_type: string
+  target_id: number
+  action: string // create / update / delete
+  field: string | null
+  old_value: string | null
+  new_value: string | null
+  source: string
+  operator_id: number | null
+  operator_name: string | null
+  batch_id: number | null
+  created_at: string
 }
 
 // ---------- 手工物料导入 ----------

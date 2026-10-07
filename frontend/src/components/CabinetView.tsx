@@ -24,12 +24,21 @@ interface CabinetViewProps {
   assets: Asset[]
   totalU?: number
   onSelect?: (asset: Asset) => void
+  onPlace?: (u: number) => void
 }
 
-export default function CabinetView({ assets, totalU = 45, onSelect }: CabinetViewProps) {
+export default function CabinetView({ assets, totalU = 45, onSelect, onPlace }: CabinetViewProps) {
   const width = LABEL_W + GAP + BODY_W
   const height = totalU * SLOT_H + 2
   const bodyX = LABEL_W + GAP
+
+  // 已占用的 U 位集合（空槽据此渲染「在此上架」点击层）。
+  const occupied = new Set<number>()
+  assets.forEach((a) => {
+    if (a.u_start != null && a.u_end != null) {
+      for (let u = a.u_start; u <= a.u_end; u++) occupied.add(u)
+    }
+  })
 
   return (
     <div style={{ position: 'relative', width, height, flexShrink: 0 }}>
@@ -153,6 +162,30 @@ export default function CabinetView({ assets, totalU = 45, onSelect }: CabinetVi
           </Tooltip>
         )
       })}
+
+      {/* 空槽点击层：仅在有上架回调时渲染（即可管理该柜） */}
+      {onPlace &&
+        Array.from({ length: totalU }, (_, i) => {
+          const u = totalU - i
+          if (occupied.has(u)) return null
+          const top = (totalU - u) * SLOT_H + 1
+          return (
+            <div
+              key={`slot-${u}`}
+              className="u-slot-empty"
+              title={`U${u} 在此上架`}
+              onClick={() => onPlace(u)}
+              style={{
+                left: bodyX + 12,
+                top,
+                width: BODY_W - 24,
+                height: SLOT_H - 2,
+              }}
+            >
+              <span className="u-slot-empty-hint">在此上架</span>
+            </div>
+          )
+        })}
     </div>
   )
 }

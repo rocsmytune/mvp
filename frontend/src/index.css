@@ -15,3 +15,27 @@ body {
 .import-row-warning > td {
   background: #fffbe6 !important;
 }
+
+/* 机柜 U 位图：空槽「在此上架」悬停提示 */
+.u-slot-empty {
+  position: absolute;
+  border: 1px dashed transparent;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.u-slot-empty .u-slot-empty-hint {
+  color: #0958d9;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.u-slot-empty:hover {
+  background: #e6f4ff;
+  border-color: #91caff;
+}
+.u-slot-empty:hover .u-slot-empty-hint {
+  opacity: 1;
+}

@@ -11,6 +11,7 @@ import {
   Spin,
   Table,
   Tag,
+  Timeline,
   Typography,
 } from 'antd'
 import type { TableColumnsType } from 'antd'
@@ -21,9 +22,16 @@ import {
   PlusOutlined,
 } from '@ant-design/icons'
 import { getErrorMessage } from '../api/client'
-import { deleteAsset, deleteComponent, fetchAssets, fetchComponents } from '../api'
-import type { Asset, CabinetSummary, Component, UserInfo } from '../api/types'
+import {
+  deleteAsset,
+  deleteComponent,
+  fetchAssetChangelogs,
+  fetchAssets,
+  fetchComponents,
+} from '../api'
+import type { Asset, CabinetSummary, ChangeLogEntry, Component, UserInfo } from '../api/types'
 import CabinetView from './CabinetView'
+import AssetCreateModal from './AssetCreateModal'
 import AssetEditModal from './AssetEditModal'
 import ComponentFormModal from './ComponentFormModal'
 
@@ -31,9 +39,18 @@ const TYPE_LABEL: Record<string, string> = { server: '服务器', switch: '交�
 const STATUS_LABEL: Record<string, string> = { in_use: '在用' }
 const SOURCE_LABEL: Record<string, string> = { manual: '手工', import: '导入', bmc: 'BMC' }
 const SOURCE_COLOR: Record<string, string> = { manual: 'blue', import: 'green', bmc: 'purple' }
+const LOG_ACTION_LABEL: Record<string, string> = { create: '创建', update: '更新', delete: '删除' }
+const LOG_ACTION_COLOR: Record<string, string> = { create: 'green', update: 'blue', delete: 'red' }
 
 function fmt(v: string | null | undefined): string {
   return v === null || v === undefined || v === '' ? '—' : v
+}
+
+function fmtTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 function uText(a: Asset): string {
@@ -93,9 +110,13 @@ function CabinetBody({
   const [selected, setSelected] = useState<Asset | null>(null)
   const [components, setComponents] = useState<Component[]>([])
   const [componentsLoading, setComponentsLoading] = useState(false)
+  const [logs, setLogs] = useState<ChangeLogEntry[]>([])
+  const [logsLoading, setLogsLoading] = useState(false)
   const [editAsset, setEditAsset] = useState<Asset | null>(null)
   const [compOpen, setCompOpen] = useState(false)
   const [editingComponent, setEditingComponent] = useState<Component | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createU, setCreateU] = useState(1)
 
   // 与后端 can_manage_cabinet 对齐：admin 全权 / 该柜柜主本人。
   const canManage =
@@ -117,6 +138,15 @@ function CabinetBody({
       .finally(() => setComponentsLoading(false))
   }
 
+  function reloadLogs(assetId: number) {
+    setLogs([])
+    setLogsLoading(true)
+    fetchAssetChangelogs(assetId)
+      .then(setLogs)
+      .catch(() => setLogs([]))
+      .finally(() => setLogsLoading(false))
+  }
+
   useEffect(() => {
     setAssetsLoading(true)
     fetchAssets(cabinet.id)
@@ -129,11 +159,23 @@ function CabinetBody({
     setSelected(a)
     setView('asset')
     reloadComponents(a.id)
+    reloadLogs(a.id)
   }
 
   function onAssetSaved(updated: Asset) {
     setSelected(updated)
     setAssets((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
+    reloadLogs(updated.id)
+    onChanged?.()
+  }
+
+  function onPlace(u: number) {
+    setCreateU(u)
+    setCreateOpen(true)
+  }
+
+  function onCreateSaved() {
+    reloadAssets()
     onChanged?.()
   }
 
@@ -233,7 +275,12 @@ function CabinetBody({
                 <Spin />
               </div>
             ) : (
-              <CabinetView assets={assets} totalU={cabinet.total_u} onSelect={openAsset} />
+              <CabinetView
+                assets={assets}
+                totalU={cabinet.total_u}
+                onSelect={openAsset}
+                onPlace={canManage ? onPlace : undefined}
+              />
             )}
           </div>
 
@@ -255,6 +302,16 @@ function CabinetBody({
             )}
           </div>
         </div>
+
+        {createOpen && (
+          <AssetCreateModal
+            cabinetId={cabinet.id}
+            cabinetName={cabinet.name}
+            uStart={createU}
+            onClose={() => setCreateOpen(false)}
+            onSaved={onCreateSaved}
+          />
+        )}
       </>
     )
   }
@@ -400,6 +457,57 @@ function CabinetBody({
           size="small"
           pagination={{ pageSize: 10, showSizeChanger: true }}
         />
+      )}
+
+      <Typography.Text strong style={{ display: 'block', margin: '16px 0 8px' }}>
+        变更日志（{logs.length}）
+      </Typography.Text>
+      {logsLoading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 16 }}>
+          <Spin />
+        </div>
+      ) : logs.length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无变更记录" />
+      ) : (
+        <div style={{ maxHeight: 260, overflowY: 'auto', paddingLeft: 4 }}>
+          <Timeline
+            items={logs.map((l) => ({
+              key: l.id,
+              color: LOG_ACTION_COLOR[l.action] ?? 'gray',
+              children: (
+                <div>
+                  <div>
+                    <Tag color={LOG_ACTION_COLOR[l.action] ?? 'default'}>
+                      {LOG_ACTION_LABEL[l.action] ?? l.action}
+                    </Tag>
+                    {l.field && (
+                      <>
+                        <Typography.Text code style={{ fontSize: 12 }}>
+                          {l.field}
+                        </Typography.Text>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {' '}
+                          {l.old_value ?? '—'} → {l.new_value ?? '—'}
+                        </Typography.Text>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ marginTop: 2 }}>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {fmtTime(l.created_at)} · {l.operator_name ?? '—'}
+                    </Typography.Text>
+                    <Tag
+                      color={SOURCE_COLOR[l.source] ?? 'default'}
+                      style={{ marginLeft: 6, fontSize: 11 }}
+                    >
+                      {SOURCE_LABEL[l.source] ?? l.source}
+                    </Tag>
+                  </div>
+                </div>
+              ),
+            }))}
+          />
+        </div>
       )}
 
       <AssetEditModal
