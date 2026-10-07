@@ -4,6 +4,8 @@ import {
   Descriptions,
   Drawer,
   Empty,
+  message,
+  Modal,
   Progress,
   Space,
   Spin,
@@ -12,10 +14,18 @@ import {
   Typography,
 } from 'antd'
 import type { TableColumnsType } from 'antd'
-import { ArrowLeftOutlined } from '@ant-design/icons'
-import { fetchAssets, fetchComponents } from '../api'
-import type { Asset, CabinetSummary, Component } from '../api/types'
+import {
+  ArrowLeftOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+} from '@ant-design/icons'
+import { getErrorMessage } from '../api/client'
+import { deleteAsset, deleteComponent, fetchAssets, fetchComponents } from '../api'
+import type { Asset, CabinetSummary, Component, UserInfo } from '../api/types'
 import CabinetView from './CabinetView'
+import AssetEditModal from './AssetEditModal'
+import ComponentFormModal from './ComponentFormModal'
 
 const TYPE_LABEL: Record<string, string> = { server: '服务器', switch: '交换机' }
 const STATUS_LABEL: Record<string, string> = { in_use: '在用' }
@@ -47,10 +57,12 @@ function sourceTag(fs: Record<string, string>, key: string) {
 
 interface CabinetDrawerProps {
   cabinet: CabinetSummary | null
+  user: UserInfo
   onClose: () => void
+  onChanged?: () => void
 }
 
-export default function CabinetDrawer({ cabinet, onClose }: CabinetDrawerProps) {
+export default function CabinetDrawer({ cabinet, user, onClose, onChanged }: CabinetDrawerProps) {
   return (
     <Drawer
       open={cabinet !== null}
@@ -59,20 +71,54 @@ export default function CabinetDrawer({ cabinet, onClose }: CabinetDrawerProps) 
       destroyOnClose
       title={cabinet ? `机柜 ${cabinet.name}` : ''}
     >
-      {cabinet && <CabinetBody key={cabinet.id} cabinet={cabinet} />}
+      {cabinet && (
+        <CabinetBody key={cabinet.id} cabinet={cabinet} user={user} onChanged={onChanged} />
+      )}
     </Drawer>
   )
 }
 
-function CabinetBody({ cabinet }: { cabinet: CabinetSummary }) {
+function CabinetBody({
+  cabinet,
+  user,
+  onChanged,
+}: {
+  cabinet: CabinetSummary
+  user: UserInfo
+  onChanged?: () => void
+}) {
   const [view, setView] = useState<'cabinet' | 'asset'>('cabinet')
   const [assets, setAssets] = useState<Asset[]>([])
   const [assetsLoading, setAssetsLoading] = useState(true)
   const [selected, setSelected] = useState<Asset | null>(null)
   const [components, setComponents] = useState<Component[]>([])
   const [componentsLoading, setComponentsLoading] = useState(false)
+  const [editAsset, setEditAsset] = useState<Asset | null>(null)
+  const [compOpen, setCompOpen] = useState(false)
+  const [editingComponent, setEditingComponent] = useState<Component | null>(null)
+
+  // 与后端 can_manage_cabinet 对齐：admin 全权 / 该柜柜主本人。
+  const canManage =
+    user.role === 'admin' ||
+    (user.role === 'cabinet_owner' && cabinet.owner_id === user.id)
+
+  function reloadAssets() {
+    fetchAssets(cabinet.id)
+      .then(setAssets)
+      .catch(() => setAssets([]))
+  }
+
+  function reloadComponents(assetId: number) {
+    setComponents([])
+    setComponentsLoading(true)
+    fetchComponents(assetId)
+      .then(setComponents)
+      .catch(() => setComponents([]))
+      .finally(() => setComponentsLoading(false))
+  }
 
   useEffect(() => {
+    setAssetsLoading(true)
     fetchAssets(cabinet.id)
       .then(setAssets)
       .catch(() => setAssets([]))
@@ -82,18 +128,62 @@ function CabinetBody({ cabinet }: { cabinet: CabinetSummary }) {
   function openAsset(a: Asset) {
     setSelected(a)
     setView('asset')
-    setComponents([])
-    setComponentsLoading(true)
-    fetchComponents(a.id)
-      .then(setComponents)
-      .catch(() => setComponents([]))
-      .finally(() => setComponentsLoading(false))
+    reloadComponents(a.id)
+  }
+
+  function onAssetSaved(updated: Asset) {
+    setSelected(updated)
+    setAssets((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
+    onChanged?.()
+  }
+
+  function confirmDeleteAsset(a: Asset) {
+    Modal.confirm({
+      title: `删除设备 ${assetLabel(a)}？`,
+      content: '该设备及其下部件将被一并删除（软删除）。',
+      okText: '删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await deleteAsset(a.id)
+          message.success('已删除')
+          onChanged?.()
+          setView('cabinet')
+          setSelected(null)
+          reloadAssets()
+        } catch (e) {
+          message.error(getErrorMessage(e, '删除失败'))
+        }
+      },
+    })
+  }
+
+  function confirmDeleteComponent(c: Component) {
+    Modal.confirm({
+      title: `删除部件 ${c.sn || c.category}？`,
+      okText: '删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await deleteComponent(c.id)
+          message.success('已删除')
+          reloadComponents(c.asset_id)
+        } catch (e) {
+          message.error(getErrorMessage(e, '删除失败'))
+        }
+      },
+    })
   }
 
   // ---------- 机柜视图 ----------
   if (view === 'cabinet') {
-    const pct =
-      cabinet.total_u > 0 ? Math.round((cabinet.used_u / cabinet.total_u) * 100) : 0
+    const usedU = assets.reduce(
+      (sum, x) => (x.u_start != null && x.u_end != null ? sum + (x.u_end - x.u_start + 1) : sum),
+      0,
+    )
+    const pct = cabinet.total_u > 0 ? Math.round((usedU / cabinet.total_u) * 100) : 0
     const assetColumns: TableColumnsType<Asset> = [
       {
         title: '设备',
@@ -117,7 +207,7 @@ function CabinetBody({ cabinet }: { cabinet: CabinetSummary }) {
           <Progress
             percent={pct}
             size="small"
-            format={() => `${cabinet.used_u}/${cabinet.total_u}U`}
+            format={() => `${usedU}/${cabinet.total_u}U`}
             style={{ width: 160, margin: 0 }}
           />
         </Space>
@@ -180,6 +270,32 @@ function CabinetBody({ cabinet }: { cabinet: CabinetSummary }) {
     { title: '数量', dataIndex: 'qty', width: 60 },
     { title: '挂账人', dataIndex: 'holder_name', width: 110, render: fmt },
   ]
+  if (canManage) {
+    compColumns.push({
+      title: '操作',
+      width: 110,
+      render: (_: unknown, c: Component) => (
+        <Space size={0}>
+          <Button
+            type="link"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => {
+              setEditingComponent(c)
+              setCompOpen(true)
+            }}
+          />
+          <Button
+            type="link"
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => confirmDeleteComponent(c)}
+          />
+        </Space>
+      ),
+    })
+  }
   return (
     <>
       <Button
@@ -191,12 +307,31 @@ function CabinetBody({ cabinet }: { cabinet: CabinetSummary }) {
         返回机柜
       </Button>
 
-      <Space style={{ marginBottom: 12 }}>
-        <Tag color={a.type === 'switch' ? 'orange' : 'blue'}>{TYPE_LABEL[a.type] ?? a.type}</Tag>
-        <Typography.Text strong style={{ fontSize: 16 }}>
-          {assetLabel(a)}
-        </Typography.Text>
-      </Space>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+        }}
+      >
+        <Space>
+          <Tag color={a.type === 'switch' ? 'orange' : 'blue'}>{TYPE_LABEL[a.type] ?? a.type}</Tag>
+          <Typography.Text strong style={{ fontSize: 16 }}>
+            {assetLabel(a)}
+          </Typography.Text>
+        </Space>
+        {canManage && (
+          <Space>
+            <Button size="small" icon={<EditOutlined />} onClick={() => setEditAsset(a)}>
+              编辑
+            </Button>
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={() => confirmDeleteAsset(a)}>
+              删除
+            </Button>
+          </Space>
+        )}
+      </div>
 
       <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
         <Descriptions.Item label="型号">{fmt(a.model)}</Descriptions.Item>
@@ -228,9 +363,29 @@ function CabinetBody({ cabinet }: { cabinet: CabinetSummary }) {
         </Descriptions.Item>
       </Descriptions>
 
-      <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
-        部件（{components.length}）
-      </Typography.Text>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 8,
+        }}
+      >
+        <Typography.Text strong>部件（{components.length}）</Typography.Text>
+        {canManage && (
+          <Button
+            size="small"
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setEditingComponent(null)
+              setCompOpen(true)
+            }}
+          >
+            添加部件
+          </Button>
+        )}
+      </div>
       {componentsLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
           <Spin />
@@ -244,6 +399,20 @@ function CabinetBody({ cabinet }: { cabinet: CabinetSummary }) {
           dataSource={components}
           size="small"
           pagination={{ pageSize: 10, showSizeChanger: true }}
+        />
+      )}
+
+      <AssetEditModal
+        asset={editAsset}
+        onClose={() => setEditAsset(null)}
+        onSaved={onAssetSaved}
+      />
+      {compOpen && (
+        <ComponentFormModal
+          assetId={a.id}
+          component={editingComponent}
+          onClose={() => setCompOpen(false)}
+          onSaved={() => reloadComponents(a.id)}
         />
       )}
     </>

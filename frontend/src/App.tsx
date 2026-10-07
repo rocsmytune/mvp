@@ -88,7 +88,7 @@ export default function App() {
         </Space>
       </Layout.Header>
       <Layout.Content style={{ padding: 24 }}>
-        {page === 'import' ? <ImportCenterPage isAdmin={user.role === 'admin'} /> : <OverviewPage />}
+        {page === 'import' ? <ImportCenterPage isAdmin={user.role === 'admin'} /> : <OverviewPage user={user} />}
       </Layout.Content>
     </Layout>
   )

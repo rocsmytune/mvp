@@ -1,7 +1,10 @@
 import { api } from './client'
 import type {
   Asset,
+  AssetUpdatePayload,
   Component,
+  ComponentCreatePayload,
+  ComponentUpdatePayload,
   ExportSnapshot,
   ImportBatch,
   ImportConfirmResponse,
@@ -30,6 +33,31 @@ export async function fetchComponents(assetId: number): Promise<Component[]> {
     params: { asset_id: assetId, limit: 500 },
   })
   return res.data.items
+}
+
+// ---------- 编辑入口：资产/部件写操作（复用已有 CRUD 接口） ----------
+
+export async function updateAsset(id: number, data: AssetUpdatePayload): Promise<Asset> {
+  const res = await api.patch<Asset>(`/assets/${id}`, data)
+  return res.data
+}
+
+export async function deleteAsset(id: number): Promise<void> {
+  await api.delete(`/assets/${id}`)
+}
+
+export async function createComponent(data: ComponentCreatePayload): Promise<Component> {
+  const res = await api.post<Component>('/components', data)
+  return res.data
+}
+
+export async function updateComponent(id: number, data: ComponentUpdatePayload): Promise<Component> {
+  const res = await api.patch<Component>(`/components/${id}`, data)
+  return res.data
+}
+
+export async function deleteComponent(id: number): Promise<void> {
+  await api.delete(`/components/${id}`)
 }
 
 // 上传物料表（rows 已由前端解析），返回预览 + 批次号。

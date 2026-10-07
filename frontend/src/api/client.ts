@@ -14,3 +14,14 @@ api.interceptors.request.use((config) => {
   }
   return config
 })
+
+// 从后端错误里提取可读文案（HTTPException 的 detail 为字符串，Pydantic 校验为列表）。
+export function getErrorMessage(err: unknown, fallback = '操作失败'): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail) && detail.length > 0) {
+    const msg = (detail[0] as { msg?: string })?.msg
+    if (msg) return msg
+  }
+  return fallback
+}

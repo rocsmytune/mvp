@@ -1,6 +1,7 @@
 // 与后端 Pydantic 模型对齐的类型定义。
 
 export interface UserInfo {
+  id: number
   employee_no: string
   name: string
   role: string
@@ -73,6 +74,38 @@ export interface Component {
   holder_id: number | null
   holder_name: string | null
   updated_at: string
+}
+
+// ---------- 编辑入口写操作 payload（与后端 Pydantic 对齐，可选字段全部可空） ----------
+
+export interface AssetUpdatePayload {
+  sn?: string | null
+  model?: string | null
+  cpu_model?: string | null
+  asset_tag?: string | null
+  ip_inband?: string | null
+  bmc_ip?: string | null
+  u_start?: number | null
+  u_end?: number | null
+  status?: string | null
+  remark?: string | null
+}
+
+export interface ComponentCreatePayload {
+  asset_id: number
+  category: string
+  sn?: string | null
+  model?: string | null
+  qty?: number
+  remark?: string | null
+}
+
+export interface ComponentUpdatePayload {
+  category?: string | null
+  sn?: string | null
+  model?: string | null
+  qty?: number | null
+  remark?: string | null
 }
 
 // ---------- 手工物料导入 ----------

@@ -9,6 +9,7 @@ class LoginRequest(BaseModel):
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    id: int
     employee_no: str
     name: str
     role: str

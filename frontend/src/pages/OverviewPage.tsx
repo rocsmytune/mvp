@@ -1,21 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, Col, Empty, message, Progress, Row, Select, Space, Spin, Statistic, Typography } from 'antd'
 import { fetchOverview } from '../api'
-import type { CabinetSummary, Overview } from '../api/types'
+import type { CabinetSummary, Overview, UserInfo } from '../api/types'
 import CabinetDrawer from '../components/CabinetDrawer'
 
-export default function OverviewPage() {
+export default function OverviewPage({ user }: { user: UserInfo }) {
   const [data, setData] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
   const [roomId, setRoomId] = useState<number | undefined>(undefined)
   const [zone, setZone] = useState<string | undefined>(undefined)
   const [selectedCabinet, setSelectedCabinet] = useState<CabinetSummary | null>(null)
 
+  const load = async () => {
+    try {
+      setData(await fetchOverview())
+    } catch {
+      message.error('加载机房总览失败')
+    }
+  }
+
   useEffect(() => {
-    fetchOverview()
-      .then(setData)
-      .catch(() => message.error('加载机房总览失败'))
-      .finally(() => setLoading(false))
+    load().finally(() => setLoading(false))
   }, [])
 
   const roomById = useMemo(
@@ -132,7 +137,12 @@ export default function OverviewPage() {
         )}
       </Card>
     </Space>
-    <CabinetDrawer cabinet={selectedCabinet} onClose={() => setSelectedCabinet(null)} />
+    <CabinetDrawer
+      cabinet={selectedCabinet}
+      user={user}
+      onClose={() => setSelectedCabinet(null)}
+      onChanged={load}
+    />
     </>
   )
 }
