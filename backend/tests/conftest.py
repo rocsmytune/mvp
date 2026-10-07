@@ -1,5 +1,23 @@
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# 独立测试库：测试不得污染开发库（docker 里的 mvp）。
+# 在导入任何 app 模块之前，先把 DATABASE_URL 指向测试库，让 app.core.db 的
+# engine 与后续 alembic 都连测试库。默认 mvp_test（与开发库同服务器），
+# 可用环境变量 TEST_DATABASE_URL 覆盖。
+# ---------------------------------------------------------------------------
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL", "postgresql+psycopg://mvp:mvp@localhost:5432/mvp_test"
+)
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL  # 必须早于任何 app 导入
+
 import pytest
-from sqlalchemy import or_
+from sqlalchemy import create_engine, or_, text
+from sqlalchemy.engine import make_url
 
 from app.core.db import SessionLocal
 from app.core.security import hash_password
@@ -13,6 +31,34 @@ from app.models.user import User
 
 TEST_EMPLOYEE_NO = "900001"
 TEST_PASSWORD = "test-password-123"
+
+
+def _maintenance_url(db_url: str) -> str:
+    """连维护库 postgres，用于建/删测试库（不能在被删库自身内操作）。"""
+    return make_url(db_url).set(database="postgres").render_as_string(hide_password=False)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _test_database():
+    """会话级：重建独立测试库并跑迁移，本次运行全程使用该库。
+
+    表结构只用 `alembic upgrade head`（遵守 CLAUDE.md，禁止 create_all）；
+    每次运行先 DROP + CREATE，保证干净起点，不残留上次数据。
+    """
+    db_name = make_url(TEST_DATABASE_URL).database
+    admin = create_engine(_maintenance_url(TEST_DATABASE_URL), isolation_level="AUTOCOMMIT")
+    with admin.connect() as conn:
+        conn.execute(text(f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE)'))
+        conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+    admin.dispose()
+
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=BACKEND_DIR,
+        check=True,
+        env={**os.environ, "DATABASE_URL": TEST_DATABASE_URL},
+    )
+    yield
 
 
 @pytest.fixture
