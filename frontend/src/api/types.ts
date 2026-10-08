@@ -170,6 +170,9 @@ export interface Asset {
   holder_name: string | null
   created_at: string
   updated_at: string
+  // 列表页联表返回的定位上下文（详情/写接口可能不含）
+  cabinet_name?: string | null
+  room_code?: string | null
 }
 
 export interface Component {
@@ -180,12 +183,17 @@ export interface Component {
   model: string | null
   name: string | null
   material_code: string | null
-  qty: number
   sn_source: string
   remark: string | null
   holder_id: number | null
   holder_name: string | null
   updated_at: string
+  // 列表页联表返回的定位上下文
+  asset_sn?: string | null
+  asset_model?: string | null
+  cabinet_id?: number | null
+  cabinet_name?: string | null
+  room_code?: string | null
 }
 
 // ---------- 编辑入口写操作 payload（与后端 Pydantic 对齐，可选字段全部可空） ----------
@@ -223,16 +231,20 @@ export interface ComponentCreatePayload {
   category: string
   sn?: string | null
   model?: string | null
-  qty?: number
+  name?: string | null
+  material_code?: string | null
   remark?: string | null
+  holder_name?: string | null
 }
 
 export interface ComponentUpdatePayload {
   category?: string | null
   sn?: string | null
   model?: string | null
-  qty?: number | null
+  name?: string | null
+  material_code?: string | null
   remark?: string | null
+  holder_name?: string | null
 }
 
 // ---------- 变更日志 ----------

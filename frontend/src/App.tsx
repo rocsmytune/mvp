@@ -8,6 +8,7 @@ import ImportCenterPage from './pages/ImportCenterPage'
 import UserManagePage from './pages/UserManagePage'
 import DictionaryManagePage from './pages/DictionaryManagePage'
 import CabinetManagePage from './pages/CabinetManagePage'
+import AssetListPage from './pages/AssetListPage'
 import GlobalSearch from './components/GlobalSearch'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -20,7 +21,7 @@ const ROLE_LABEL: Record<string, string> = {
 // 业务管理员（系统管理员 / 物料管理员）：具备物料/机柜/导入/导出权限。
 const isBusinessAdmin = (role: string) => role === 'system_admin' || role === 'material_admin'
 
-type PageKey = 'overview' | 'import' | 'users' | 'dictionaries' | 'cabinets'
+type PageKey = 'overview' | 'assets' | 'import' | 'users' | 'dictionaries' | 'cabinets'
 
 export default function App() {
   const [user, setUser] = useState<UserInfo | null>(null)
@@ -65,6 +66,7 @@ export default function App() {
   const canImport = user.role !== 'member'
   const menuItems = [
     { key: 'overview', label: '机房总览' },
+    { key: 'assets', label: '设备物料' },
     ...(canImport ? [{ key: 'import', label: '导入中心' }] : []),
     ...(isBusinessAdmin(user.role) ? [{ key: 'cabinets', label: '机柜管理' }] : []),
     ...(user.role === 'system_admin' ? [{ key: 'users', label: '用户管理' }] : []),
@@ -85,7 +87,7 @@ export default function App() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
           <Typography.Title level={4} style={{ color: '#fff', margin: 0, whiteSpace: 'nowrap' }}>
-            机柜物料管理平台
+            Kunpeng KNOW
           </Typography.Title>
           <Menu
             theme="dark"
@@ -108,7 +110,9 @@ export default function App() {
         </Space>
       </Layout.Header>
       <Layout.Content style={{ padding: 24 }}>
-        {page === 'import' ? (
+        {page === 'assets' ? (
+          <AssetListPage onNavigate={handleSearchNavigate} />
+        ) : page === 'import' ? (
           <ImportCenterPage isAdmin={isBusinessAdmin(user.role)} />
         ) : page === 'users' ? (
           <UserManagePage />

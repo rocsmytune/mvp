@@ -52,6 +52,29 @@ export async function fetchComponents(assetId: number): Promise<Component[]> {
   return res.data.items
 }
 
+// 设备列表页：服务端分页 + 过滤（q/type/status）。
+export async function fetchAssetPage(params?: {
+  q?: string
+  type?: string
+  status?: string
+  skip?: number
+  limit?: number
+}): Promise<{ total: number; items: Asset[] }> {
+  const res = await api.get<{ total: number; items: Asset[] }>('/assets', { params })
+  return res.data
+}
+
+// 物料列表页：服务端分页 + 过滤（q/category）。
+export async function fetchComponentPage(params?: {
+  q?: string
+  category?: string
+  skip?: number
+  limit?: number
+}): Promise<{ total: number; items: Component[] }> {
+  const res = await api.get<{ total: number; items: Component[] }>('/components', { params })
+  return res.data
+}
+
 // 某设备的变更日志（按时间倒序）。
 export async function fetchAssetChangelogs(assetId: number): Promise<ChangeLogEntry[]> {
   const res = await api.get<ChangeLogEntry[]>(`/assets/${assetId}/changelogs`)

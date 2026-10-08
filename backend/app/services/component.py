@@ -3,12 +3,14 @@
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.asset import Asset
 from app.models.cabinet import Cabinet
 from app.models.component import Component
+from app.models.room import Room
 from app.models.user import User
 from app.permissions import ensure_can_manage_cabinet
 from app.schemas.component import ComponentCreate, ComponentUpdate
@@ -108,11 +110,46 @@ def delete_component(db: Session, operator: User, component_id: int) -> None:
 
 
 def list_components(
-    db: Session, *, asset_id: int | None = None, skip: int = 0, limit: int = 100
+    db: Session,
+    *,
+    asset_id: int | None = None,
+    category: str | None = None,
+    q: str | None = None,
+    skip: int = 0,
+    limit: int = 100,
 ) -> tuple[list[Component], int]:
-    query = db.query(Component).filter(Component.deleted_at.is_(None))
+    base = db.query(Component).filter(Component.deleted_at.is_(None))
     if asset_id is not None:
-        query = query.filter(Component.asset_id == asset_id)
-    total = query.count()
-    items = query.order_by(Component.id.desc()).offset(skip).limit(limit).all()
+        base = base.filter(Component.asset_id == asset_id)
+    if category:
+        base = base.filter(Component.category == category)
+    if q:
+        like = f"%{q}%"
+        base = base.filter(
+            or_(
+                Component.sn.ilike(like),
+                Component.model.ilike(like),
+                Component.name.ilike(like),
+                Component.material_code.ilike(like),
+            )
+        )
+    total = base.count()
+    rows = (
+        base.join(Asset, Asset.id == Component.asset_id)
+        .outerjoin(Cabinet, Cabinet.id == Asset.cabinet_id)
+        .outerjoin(Room, Room.id == Cabinet.room_id)
+        .add_columns(Asset.sn, Asset.model, Asset.cabinet_id, Cabinet.name, Room.code)
+        .order_by(Component.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    items = []
+    for comp, asset_sn, asset_model, cabinet_id, cabinet_name, room_code in rows:
+        comp.asset_sn = asset_sn
+        comp.asset_model = asset_model
+        comp.cabinet_id = cabinet_id
+        comp.cabinet_name = cabinet_name
+        comp.room_code = room_code
+        items.append(comp)
     return items, total

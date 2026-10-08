@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Form, Input, InputNumber, Modal, Select, message } from 'antd'
+import { Form, Input, Modal, Select, message } from 'antd'
 import { getErrorMessage } from '../api/client'
 import { createComponent, fetchDictionaries, updateComponent } from '../api'
 import type { Component } from '../api/types'
@@ -43,11 +43,13 @@ export default function ComponentFormModal({ assetId, component, onClose, onSave
         category: component.category,
         sn: component.sn ?? '',
         model: component.model ?? '',
-        qty: component.qty,
+        name: component.name ?? '',
+        material_code: component.material_code ?? '',
+        holder_name: component.holder_name ?? '',
         remark: component.remark ?? '',
       })
     } else {
-      form.setFieldsValue({ category: undefined, sn: '', model: '', qty: 1, remark: '' })
+      form.setFieldsValue({ category: undefined, sn: '', model: '', name: '', material_code: '', holder_name: '', remark: '' })
     }
   }, [component, form])
 
@@ -57,7 +59,9 @@ export default function ComponentFormModal({ assetId, component, onClose, onSave
       category: values.category,
       sn: norm(values.sn),
       model: norm(values.model),
-      qty: values.qty ?? 1,
+      name: norm(values.name),
+      material_code: norm(values.material_code),
+      holder_name: norm(values.holder_name),
       remark: norm(values.remark),
     }
     setSubmitting(true)
@@ -99,8 +103,14 @@ export default function ComponentFormModal({ assetId, component, onClose, onSave
         <Form.Item label="型号" name="model">
           <Input placeholder="型号" />
         </Form.Item>
-        <Form.Item label="数量" name="qty" rules={[{ required: true, message: '请输入数量' }]}>
-          <InputNumber min={1} style={{ width: '100%' }} />
+        <Form.Item label="名称" name="name">
+          <Input placeholder="物料名称" />
+        </Form.Item>
+        <Form.Item label="物料编码" name="material_code">
+          <Input placeholder="物料编码" />
+        </Form.Item>
+        <Form.Item label="挂账人" name="holder_name">
+          <Input placeholder="工号 姓名（可留空）" />
         </Form.Item>
         <Form.Item label="备注" name="remark">
           <Input.TextArea rows={2} placeholder="备注" />

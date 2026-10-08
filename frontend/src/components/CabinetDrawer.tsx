@@ -361,9 +361,8 @@ function CabinetBody({
     { title: '物料类型', dataIndex: 'category', width: 90 },
     { title: 'SN', dataIndex: 'sn', width: 130, render: fmt },
     { title: '名称', dataIndex: 'name', render: fmt },
-    { title: '物料编码', dataIndex: 'material_code', width: 120, render: fmt },
-    { title: '数量', dataIndex: 'qty', width: 60 },
-    { title: '挂账人', dataIndex: 'holder_name', width: 110, render: fmt },
+    { title: '物料编码', dataIndex: 'material_code', render: fmt },
+    { title: '挂账人', dataIndex: 'holder_name', render: fmt },
   ]
   if (canManage) {
     compColumns.push({

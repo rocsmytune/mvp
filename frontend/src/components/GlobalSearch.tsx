@@ -104,7 +104,7 @@ export default function GlobalSearch({ onNavigate }: GlobalSearchProps) {
   return (
     <AutoComplete
       value={value}
-      style={{ width: 340 }}
+      style={{ width: 240 }}
       options={options}
       open={open}
       onSearch={onSearch}

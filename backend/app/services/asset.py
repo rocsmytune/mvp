@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.models.asset import Asset
 from app.models.cabinet import Cabinet
 from app.models.component import Component
+from app.models.room import Room
 from app.models.user import User
 from app.permissions import ensure_can_manage_cabinet
 from app.schemas.asset import AssetCreate, AssetUpdate
@@ -182,27 +183,44 @@ def list_assets(
     cabinet_id: int | None = None,
     in_pool: bool | None = None,
     asset_type: str | None = None,
+    status: str | None = None,
     q: str | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Asset], int]:
-    query = db.query(Asset).filter(Asset.deleted_at.is_(None))
+    base = db.query(Asset).filter(Asset.deleted_at.is_(None))
     if cabinet_id is not None:
-        query = query.filter(Asset.cabinet_id == cabinet_id)
+        base = base.filter(Asset.cabinet_id == cabinet_id)
     if in_pool is not None:
-        query = query.filter(Asset.in_pool == in_pool)
+        base = base.filter(Asset.in_pool == in_pool)
     if asset_type:
-        query = query.filter(Asset.type == asset_type)
+        base = base.filter(Asset.type == asset_type)
+    if status:
+        base = base.filter(Asset.status == status)
     if q:
         like = f"%{q}%"
-        query = query.filter(
+        base = base.filter(
             or_(
                 Asset.sn.ilike(like),
                 Asset.asset_tag.ilike(like),
                 Asset.ip_inband.ilike(like),
                 Asset.bmc_ip.ilike(like),
+                Asset.model.ilike(like),
             )
         )
-    total = query.count()
-    items = query.order_by(Asset.id.desc()).offset(skip).limit(limit).all()
+    total = base.count()
+    rows = (
+        base.outerjoin(Cabinet, Cabinet.id == Asset.cabinet_id)
+        .outerjoin(Room, Room.id == Cabinet.room_id)
+        .add_columns(Cabinet.name, Room.code)
+        .order_by(Asset.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    items = []
+    for asset, cabinet_name, room_code in rows:
+        asset.cabinet_name = cabinet_name
+        asset.room_code = room_code
+        items.append(asset)
     return items, total

@@ -200,3 +200,43 @@ def test_manual_field_not_overwritten_by_import_source(crud_users):
         assert asset.sn == "MANUAL-SN-2"
     finally:
         db.close()
+
+
+# ---------- 列表：过滤 + 定位上下文 ----------
+
+
+def test_list_assets_filters_and_location(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        cid = crud_users["cab_admin"].id
+        client.post(
+            "/api/assets",
+            json=_create_payload(cid, 41, 41, sn="SRV-1", model="Dell R740"),
+            headers=h,
+        )
+        client.post(
+            "/api/assets",
+            json=_create_payload(cid, 42, 42, sn="SW-1", type="switch"),
+            headers=h,
+        )
+
+        # 默认列表带机柜/机房定位
+        r = client.get("/api/assets", headers=h)
+        assert r.status_code == 200
+        srv = next(a for a in r.json()["items"] if a["sn"] == "SRV-1")
+        assert srv["cabinet_name"] == "T-A01-02"
+        assert srv["room_code"] == "T-ROOM-1"
+
+        # type 过滤
+        r = client.get("/api/assets", params={"type": "switch"}, headers=h)
+        assert [a["sn"] for a in r.json()["items"]] == ["SW-1"]
+
+        # status 过滤（默认 in_use；无匹配返回空）
+        r = client.get("/api/assets", params={"status": "in_use"}, headers=h)
+        assert all(a["status"] == "in_use" for a in r.json()["items"])
+        r = client.get("/api/assets", params={"status": "nope"}, headers=h)
+        assert r.json()["total"] == 0
+
+        # q 按型号搜索（新增字段 model）
+        r = client.get("/api/assets", params={"q": "R740"}, headers=h)
+        assert [a["sn"] for a in r.json()["items"]] == ["SRV-1"]

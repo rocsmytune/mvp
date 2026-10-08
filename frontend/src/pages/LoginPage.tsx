@@ -31,7 +31,7 @@ export default function LoginPage({ onLogin }: Props) {
         background: '#f0f2f5',
       }}
     >
-      <Card title="机柜物料管理平台" style={{ width: 400 }}>
+      <Card title="Kunpeng KNOW" style={{ width: 400 }}>
         {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} showIcon />}
         <Form onFinish={onFinish} layout="vertical">
           <Form.Item

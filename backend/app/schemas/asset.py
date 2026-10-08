@@ -58,6 +58,9 @@ class AssetOut(BaseModel):
     holder_name: str | None
     created_at: datetime
     updated_at: datetime
+    # 列表页定位上下文（仅 list_assets 联表填充，非表字段；其余接口为 None）
+    cabinet_name: str | None = None
+    room_code: str | None = None
 
 
 class AssetListOut(BaseModel):

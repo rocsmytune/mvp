@@ -22,13 +22,15 @@ def create_component(
 @router.get("", response_model=ComponentListOut)
 def list_components(
     asset_id: int | None = None,
+    category: str | None = None,
+    q: str | None = None,
     skip: int = 0,
     limit: int = Query(100, le=500),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     items, total = component_service.list_components(
-        db, asset_id=asset_id, skip=skip, limit=limit
+        db, asset_id=asset_id, category=category, q=q, skip=skip, limit=limit
     )
     return ComponentListOut(total=total, items=items)
 
