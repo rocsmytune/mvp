@@ -3,6 +3,9 @@ import type {
   Asset,
   AssetCreatePayload,
   AssetUpdatePayload,
+  Cabinet,
+  CabinetCreatePayload,
+  CabinetUpdatePayload,
   ChangeLogEntry,
   Component,
   ComponentCreatePayload,
@@ -16,7 +19,11 @@ import type {
   ImportConfirmResponse,
   ImportRow,
   ImportUploadResponse,
+  OwnerOption,
   Overview,
+  Room,
+  RoomCreatePayload,
+  RoomUpdatePayload,
   SearchResult,
   UserAdmin,
   UserCreatePayload,
@@ -54,6 +61,65 @@ export async function fetchAssetChangelogs(assetId: number): Promise<ChangeLogEn
 // 全局搜索：整机SN / 部件SN / 带内IP / 带外IP / 资产编号。
 export async function searchGlobal(q: string): Promise<SearchResult[]> {
   const res = await api.get<SearchResult[]>('/search', { params: { q } })
+  return res.data
+}
+
+// ---------- 机柜管理（管理员） ----------
+
+export async function fetchRooms(q?: string): Promise<Room[]> {
+  const res = await api.get<{ total: number; items: Room[] }>('/rooms', { params: { q } })
+  return res.data.items
+}
+
+export async function createRoom(data: RoomCreatePayload): Promise<Room> {
+  const res = await api.post<Room>('/rooms', data)
+  return res.data
+}
+
+export async function updateRoom(id: number, data: RoomUpdatePayload): Promise<Room> {
+  const res = await api.patch<Room>(`/rooms/${id}`, data)
+  return res.data
+}
+
+export async function deleteRoom(id: number): Promise<void> {
+  await api.delete(`/rooms/${id}`)
+}
+
+export async function fetchCabinets(params?: {
+  room_id?: number
+  owner_id?: number
+}): Promise<Cabinet[]> {
+  const res = await api.get<{ total: number; items: Cabinet[] }>('/cabinets', { params })
+  return res.data.items
+}
+
+export async function createCabinet(data: CabinetCreatePayload): Promise<Cabinet> {
+  const res = await api.post<Cabinet>('/cabinets', data)
+  return res.data
+}
+
+export async function updateCabinet(id: number, data: CabinetUpdatePayload): Promise<Cabinet> {
+  const res = await api.patch<Cabinet>(`/cabinets/${id}`, data)
+  return res.data
+}
+
+export async function deleteCabinet(id: number): Promise<void> {
+  await api.delete(`/cabinets/${id}`)
+}
+
+export async function assignOwner(
+  cabinetIds: number[],
+  ownerId: number | null,
+): Promise<{ updated: number }> {
+  const res = await api.post<{ updated: number }>('/cabinets/assign-owner', {
+    cabinet_ids: cabinetIds,
+    owner_id: ownerId,
+  })
+  return res.data
+}
+
+export async function fetchCabinetOwners(): Promise<OwnerOption[]> {
+  const res = await api.get<OwnerOption[]>('/users/cabinet-owners')
   return res.data
 }
 

@@ -158,6 +158,28 @@ def test_cannot_demote_self(crud_users):
     assert resp.status_code == 403
 
 
+# ---------- 机柜指派柜主下拉（cabinet-owners） ----------
+
+
+def test_cabinet_owners_admins_see_only_owner_role(crud_users):
+    for emp, pw in [("910001", "admin-pass"), ("910004", "sysadmin-pass")]:
+        with TestClient(app) as client:
+            h = _auth(client, emp, pw)
+            resp = client.get("/api/users/cabinet-owners", headers=h)
+        assert resp.status_code == 200
+        emps = {u["employee_no"] for u in resp.json()}
+        # 只返回 cabinet_owner（910002），不含管理员/成员/系统管理员。
+        assert emps == {"910002"}
+
+
+def test_cabinet_owners_forbidden_for_owner_and_member(crud_users):
+    for emp, pw in [("910002", "owner-pass"), ("910003", "member-pass")]:
+        with TestClient(app) as client:
+            h = _auth(client, emp, pw)
+            resp = client.get("/api/users/cabinet-owners", headers=h)
+        assert resp.status_code == 403
+
+
 # ---------- ChangeLog ----------
 
 

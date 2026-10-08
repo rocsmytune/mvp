@@ -35,3 +35,13 @@ class UserUpdate(BaseModel):
 class UserListOut(BaseModel):
     total: int
     items: list[UserAdminOut]
+
+
+class OwnerOptionOut(BaseModel):
+    """机柜指派柜主下拉：启用中的 cabinet_owner 用户（两个管理员角色可看）。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    employee_no: str
+    name: str

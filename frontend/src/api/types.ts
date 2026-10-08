@@ -94,6 +94,58 @@ export interface Overview {
   cabinets: CabinetSummary[]
 }
 
+// ---------- 机柜管理（管理员） ----------
+
+export interface OwnerOption {
+  id: number
+  employee_no: string
+  name: string
+}
+
+export interface Cabinet {
+  id: number
+  room_id: number
+  name: string
+  row_no: string | null
+  col_no: number | null
+  total_u: number
+  owner_id: number | null
+  owner_name: string | null
+  room_code: string | null
+}
+
+export interface RoomCreatePayload {
+  city?: string | null
+  code: string
+  zone?: string | null
+  remark?: string | null
+}
+
+export interface RoomUpdatePayload {
+  city?: string | null
+  code?: string | null
+  zone?: string | null
+  remark?: string | null
+}
+
+export interface CabinetCreatePayload {
+  room_id: number
+  name: string
+  row_no?: string | null
+  col_no?: number | null
+  total_u?: number
+  owner_id?: number | null
+}
+
+export interface CabinetUpdatePayload {
+  room_id?: number | null
+  name?: string | null
+  row_no?: string | null
+  col_no?: number | null
+  total_u?: number | null
+  owner_id?: number | null
+}
+
 // ---------- 设备 / 部件（只读详情用） ----------
 
 export interface Asset {

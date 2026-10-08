@@ -7,6 +7,7 @@ import OverviewPage from './pages/OverviewPage'
 import ImportCenterPage from './pages/ImportCenterPage'
 import UserManagePage from './pages/UserManagePage'
 import DictionaryManagePage from './pages/DictionaryManagePage'
+import CabinetManagePage from './pages/CabinetManagePage'
 import GlobalSearch from './components/GlobalSearch'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -19,7 +20,7 @@ const ROLE_LABEL: Record<string, string> = {
 // 业务管理员（系统管理员 / 物料管理员）：具备物料/机柜/导入/导出权限。
 const isBusinessAdmin = (role: string) => role === 'system_admin' || role === 'material_admin'
 
-type PageKey = 'overview' | 'import' | 'users' | 'dictionaries'
+type PageKey = 'overview' | 'import' | 'users' | 'dictionaries' | 'cabinets'
 
 export default function App() {
   const [user, setUser] = useState<UserInfo | null>(null)
@@ -65,6 +66,7 @@ export default function App() {
   const menuItems = [
     { key: 'overview', label: '机房总览' },
     ...(canImport ? [{ key: 'import', label: '导入中心' }] : []),
+    ...(isBusinessAdmin(user.role) ? [{ key: 'cabinets', label: '机柜管理' }] : []),
     ...(user.role === 'system_admin' ? [{ key: 'users', label: '用户管理' }] : []),
     ...(user.role === 'system_admin' ? [{ key: 'dictionaries', label: '字典管理' }] : []),
   ]
@@ -112,6 +114,8 @@ export default function App() {
           <UserManagePage />
         ) : page === 'dictionaries' ? (
           <DictionaryManagePage />
+        ) : page === 'cabinets' ? (
+          <CabinetManagePage />
         ) : (
           <OverviewPage
             user={user}

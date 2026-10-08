@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import hash_password
 from app.models.user import User
-from app.permissions import require_system_admin
+from app.permissions import require_admin, require_system_admin
 from app.schemas.user import UserCreate, UserUpdate
 from app.services import changelog
 
@@ -50,6 +50,17 @@ def list_users(
     total = query.count()
     items = query.order_by(User.id).offset(skip).limit(limit).all()
     return items, total
+
+
+def list_cabinet_owners(db: Session, operator: User) -> list[User]:
+    """机柜指派柜主下拉：返回启用中的 cabinet_owner 用户（两个管理员角色可看）。"""
+    require_admin(operator)
+    return (
+        db.query(User)
+        .filter(User.role == "cabinet_owner", User.active.is_(True))
+        .order_by(User.employee_no)
+        .all()
+    )
 
 
 def create_user(db: Session, operator: User, data: UserCreate) -> User:

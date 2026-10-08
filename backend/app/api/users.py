@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.auth.local import get_current_user
 from app.core.db import get_db
 from app.models.user import User
-from app.schemas.user import UserAdminOut, UserCreate, UserListOut, UserUpdate
+from app.schemas.user import OwnerOptionOut, UserAdminOut, UserCreate, UserListOut, UserUpdate
 from app.services import user as user_service
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -23,6 +23,15 @@ def list_users(
         db, operator, q=q, role=role, skip=skip, limit=limit
     )
     return UserListOut(total=total, items=items)
+
+
+@router.get("/cabinet-owners", response_model=list[OwnerOptionOut])
+def list_cabinet_owners(
+    db: Session = Depends(get_db),
+    operator: User = Depends(get_current_user),
+):
+    """机柜指派柜主下拉：两个管理员角色可看（机柜管理权限范围）。"""
+    return user_service.list_cabinet_owners(db, operator)
 
 
 @router.post("", response_model=UserAdminOut, status_code=201)
