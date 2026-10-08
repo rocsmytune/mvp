@@ -1,7 +1,10 @@
 """开发用种子数据（构造数据，非真实人员）。幂等，可重复执行。
 
 用法：在 backend/ 目录下执行  .venv/bin/python seed.py
+演示数据（机房/机柜）默认不建，需显式设置环境变量 SEED_DEMO=1 才会创建。
 """
+
+import os
 
 from app.core.db import SessionLocal
 from app.core.security import hash_password
@@ -65,7 +68,11 @@ def seed() -> None:
                 print(f"创建字典 {kind}/{code} = {label}")
         db.commit()
 
-        # 演示机房 + 机柜（构造数据）：A01-01 归属柜主甲，A01-02 归属物料管理员
+        # 演示机房 + 机柜（构造数据）：A01-01 归属柜主甲，A01-02 归属物料管理员。
+        # 仅开发/演示用，生产默认不建（SEED_DEMO=1 时才会创建）。
+        if os.environ.get("SEED_DEMO") != "1":
+            print("跳过演示数据（设置 SEED_DEMO=1 可创建演示机房/机柜）")
+            return
         owner = db.query(User).filter(User.employee_no == "000002").first()
         admin = db.query(User).filter(User.employee_no == "000001").first()
         room = db.query(Room).filter(Room.code == "TEST-01").first()

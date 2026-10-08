@@ -1,0 +1,57 @@
+# 生产部署（内网 920B 单机）。用法见 deploy/README.md。
+#
+# 与开发版 docker-compose.yml 的区别：
+#   - 前端用生产镜像（nginx 托管静态 + 反代 /api），不再是 vite dev
+#   - 后端不挂源码、不 --reload、多 worker
+#   - db 不暴露宿主机端口，密码走环境变量
+#   - 全部 restart: unless-stopped
+#
+# 镜像在 Mac 上构建后 docker save 传过来（内网无外网），本文件只引用镜像名、不含 build。
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mvp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: ${POSTGRES_DB:-mvp}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mvp} -d ${POSTGRES_DB:-mvp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    # 数据库不对宿主机/对外暴露，仅 backend 经 compose 网络访问。
+
+  backend:
+    image: mvp-backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-mvp}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-mvp}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    # 后端不对宿主机/对外暴露端口，仅 frontend(nginx) 经 compose 网络反代。
+
+  frontend:
+    image: mvp-frontend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
