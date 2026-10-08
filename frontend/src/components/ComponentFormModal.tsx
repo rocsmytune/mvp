@@ -45,7 +45,10 @@ export default function ComponentFormModal({ assetId, component, onClose, onSave
         model: component.model ?? '',
         name: component.name ?? '',
         material_code: component.material_code ?? '',
-        holder_name: component.holder_name ?? '',
+        // 已关联工号时还原「工号 姓名」，否则回显裸姓名（再保存不会丢 holder_id 关联）
+        holder_name: component.holder_employee_no
+          ? `${component.holder_employee_no} ${component.holder_name ?? ''}`.trim()
+          : (component.holder_name ?? ''),
         remark: component.remark ?? '',
       })
     } else {

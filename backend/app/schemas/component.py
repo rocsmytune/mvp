@@ -40,6 +40,8 @@ class ComponentOut(BaseModel):
     remark: str | None
     holder_id: int | None
     holder_name: str | None
+    # 挂账人工号（list_components 联表 users 带出，供编辑表单还原「工号 姓名」；其余接口为 None）
+    holder_employee_no: str | None = None
     updated_at: datetime
     # 列表页定位上下文（仅 list_components 联表填充，非表字段；其余接口为 None）
     asset_sn: str | None = None

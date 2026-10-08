@@ -75,6 +75,23 @@ export default function OverviewPage({ user, focus, onFocusHandled }: OverviewPa
 
   const totalDevices = data.placed_count + data.pool_count
 
+  // ← → 切换机柜：基于当前筛选后的机柜顺序，方便连续巡检。
+  const cabinetIndex = selectedCabinet ? cabinets.findIndex((c) => c.id === selectedCabinet.id) : -1
+  const onPrevCabinet =
+    cabinetIndex > 0
+      ? () => {
+          setSelectedCabinet(cabinets[cabinetIndex - 1])
+          setFocusAssetId(null)
+        }
+      : undefined
+  const onNextCabinet =
+    cabinetIndex >= 0 && cabinetIndex < cabinets.length - 1
+      ? () => {
+          setSelectedCabinet(cabinets[cabinetIndex + 1])
+          setFocusAssetId(null)
+        }
+      : undefined
+
   return (
     <>
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -162,6 +179,8 @@ export default function OverviewPage({ user, focus, onFocusHandled }: OverviewPa
       cabinet={selectedCabinet}
       user={user}
       initialAssetId={focusAssetId}
+      onPrev={onPrevCabinet}
+      onNext={onNextCabinet}
       onClose={() => {
         setSelectedCabinet(null)
         setFocusAssetId(null)

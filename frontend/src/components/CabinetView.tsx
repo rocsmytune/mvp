@@ -5,14 +5,24 @@ import type { Asset } from '../api/types'
 // 设备块用 HTML 绝对定位叠加在框架上，便于 Tooltip 与点击交互。
 // 前视视角：U45 在顶部、U1 在底部（与「U1 在底部」数据约定一致）。
 
-const SLOT_H = 30 // 每 U 高度 px
+export const SLOT_H = 30 // 每 U 高度 px
 const LABEL_W = 30 // 左侧 U 号标签栏宽
 const BODY_W = 216 // 机柜主体宽
 const GAP = 6 // 标签栏与主体间距
 
-const TYPE_META: Record<string, { label: string; bg: string; border: string; text: string }> = {
-  server: { label: '服务器', bg: '#e6f4ff', border: '#91caff', text: '#0958d9' },
-  switch: { label: '交换机', bg: '#fff7e6', border: '#ffd591', text: '#d46b08' },
+const TYPE_META: Record<string, { label: string; bgGrad: string; border: string; text: string }> = {
+  server: {
+    label: '服务器',
+    bgGrad: 'linear-gradient(180deg, #f0f8ff 0%, #e6f4ff 100%)',
+    border: '#91caff',
+    text: '#0958d9',
+  },
+  switch: {
+    label: '交换机',
+    bgGrad: 'linear-gradient(180deg, #fffbf0 0%, #fff7e6 100%)',
+    border: '#ffd591',
+    text: '#d46b08',
+  },
 }
 
 function uText(a: Asset): string {
@@ -45,8 +55,13 @@ export default function CabinetView({ assets, totalU = 45, onSelect, onPlace }: 
       <svg
         width={width}
         height={height}
-        style={{ position: 'absolute', top: 0, left: 0 }}
+        style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible' }}
       >
+        <defs>
+          <filter id="cabinet-frame-shadow" x="-12%" y="-3%" width="124%" height="106%">
+            <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" floodColor="#000" floodOpacity="0.10" />
+          </filter>
+        </defs>
         {/* 机柜主体 */}
         <rect
           x={bodyX}
@@ -56,6 +71,7 @@ export default function CabinetView({ assets, totalU = 45, onSelect, onPlace }: 
           fill="#fafafa"
           stroke="#d9d9d9"
           strokeWidth={1}
+          filter="url(#cabinet-frame-shadow)"
         />
         {/* 左右导轨 */}
         <rect x={bodyX} y={1} width={8} height={totalU * SLOT_H} fill="#f0f0f0" />
@@ -120,9 +136,9 @@ export default function CabinetView({ assets, totalU = 45, onSelect, onPlace }: 
                 top,
                 width: BODY_W - 24,
                 height: blockH,
-                background: meta.bg,
+                background: meta.bgGrad,
                 border: `1px solid ${meta.border}`,
-                borderRadius: 3,
+                borderRadius: 6,
                 padding: '2px 8px',
                 cursor: onSelect ? 'pointer' : 'default',
                 overflow: 'hidden',

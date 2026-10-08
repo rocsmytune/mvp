@@ -81,7 +81,7 @@ def test_component_manual_fields_name_material_holder(crud_users):
                 "sn": "MEM-2",
                 "name": "DDR4内存条",
                 "material_code": "MAT-001",
-                "holder_name": "910002 张三",
+                "holder_name": "张三",
             },
             headers=h,
         )
@@ -89,7 +89,7 @@ def test_component_manual_fields_name_material_holder(crud_users):
         body = resp.json()
         assert body["name"] == "DDR4内存条"
         assert body["material_code"] == "MAT-001"
-        assert body["holder_name"] == "910002 张三"
+        assert body["holder_name"] == "张三"
 
         r = client.patch(
             f"/api/components/{body['id']}",
@@ -99,6 +99,56 @@ def test_component_manual_fields_name_material_holder(crud_users):
         assert r.status_code == 200
         assert r.json()["material_code"] == "MAT-002"
         assert r.json()["holder_name"] == "李四"
+
+
+def test_component_holder_resolves_employee_no(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        asset = _create_asset(client, h, crud_users["cab_admin"].id, 34, 34)
+
+        # 工号命中 → 关联 holder_id，姓名以输入为准
+        r = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "硬盘", "sn": "HDD-1", "holder_name": "910002 张三"},
+            headers=h,
+        )
+        assert r.status_code == 201
+        body = r.json()
+        assert body["holder_id"] == crud_users["owner"].id
+        assert body["holder_name"] == "张三"
+
+        # 列表回显 holder_employee_no，供编辑表单还原「工号 姓名」
+        r = client.get("/api/components", params={"asset_id": asset["id"]}, headers=h)
+        item = next(c for c in r.json()["items"] if c["sn"] == "HDD-1")
+        assert item["holder_employee_no"] == "910002"
+
+        # 工号未命中 → 存原文、holder_id 为空
+        r = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "硬盘", "sn": "HDD-2", "holder_name": "999999 李四"},
+            headers=h,
+        )
+        assert r.status_code == 201
+        assert r.json()["holder_id"] is None
+        assert r.json()["holder_name"] == "999999 李四"
+
+        # 纯姓名（无工号）→ 不关联
+        r = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "硬盘", "sn": "HDD-3", "holder_name": "王五"},
+            headers=h,
+        )
+        assert r.status_code == 201
+        assert r.json()["holder_id"] is None
+        assert r.json()["holder_name"] == "王五"
+
+        # 编辑：用「工号 姓名」更新关联到另一用户
+        r = client.patch(
+            f"/api/components/{body['id']}", json={"holder_name": "910003 王五"}, headers=h
+        )
+        assert r.status_code == 200
+        assert r.json()["holder_id"] == crud_users["member"].id
+        assert r.json()["holder_name"] == "王五"
 
 
 def test_list_components_filters_and_location(crud_users):

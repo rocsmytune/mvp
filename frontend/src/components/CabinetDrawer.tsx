@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties, HTMLAttributes, ReactNode } from 'react'
 import {
   Button,
   Descriptions,
+  Divider,
   Drawer,
   Empty,
   message,
@@ -19,7 +21,9 @@ import {
   ArrowLeftOutlined,
   DeleteOutlined,
   EditOutlined,
+  LeftOutlined,
   PlusOutlined,
+  RightOutlined,
 } from '@ant-design/icons'
 import { getErrorMessage } from '../api/client'
 import {
@@ -31,7 +35,7 @@ import {
   fetchDictionaries,
 } from '../api'
 import type { Asset, CabinetSummary, ChangeLogEntry, Component, UserInfo } from '../api/types'
-import CabinetView from './CabinetView'
+import CabinetView, { SLOT_H } from './CabinetView'
 import AssetCreateModal from './AssetCreateModal'
 import AssetEditModal from './AssetEditModal'
 import ComponentFormModal from './ComponentFormModal'
@@ -72,12 +76,68 @@ function sourceTag(fs: Record<string, string>, key: string) {
   )
 }
 
+// 可拖拽列宽的表头单元格（自实现 resize 手柄，不引入 react-resizable）。
+function ResizableTitle(props: {
+  width?: number
+  onResize?: (w: number) => void
+  children?: ReactNode
+  [key: string]: unknown
+}) {
+  const { width, onResize, children, ...rest } = props
+  const drag = useRef<{ startX: number; startW: number } | null>(null)
+
+  const restAsTh = rest as HTMLAttributes<HTMLTableHeaderCellElement>
+  if (width == null || !onResize) {
+    return <th {...restAsTh}>{children}</th>
+  }
+  return (
+    <th
+      {...restAsTh}
+      style={{ ...(rest.style as CSSProperties | undefined), position: 'relative' }}
+    >
+      {children}
+      <span
+        onMouseDown={(e) => {
+          e.stopPropagation()
+          e.preventDefault()
+          drag.current = { startX: e.clientX, startW: width }
+          const onMove = (ev: MouseEvent) => {
+            if (!drag.current) return
+            const next = Math.max(48, drag.current.startW + (ev.clientX - drag.current.startX))
+            onResize(next)
+          }
+          const onUp = () => {
+            drag.current = null
+            document.removeEventListener('mousemove', onMove)
+            document.removeEventListener('mouseup', onUp)
+          }
+          document.addEventListener('mousemove', onMove)
+          document.addEventListener('mouseup', onUp)
+        }}
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          right: -4,
+          width: 8,
+          cursor: 'col-resize',
+          zIndex: 1,
+        }}
+      />
+    </th>
+  )
+}
+
+const RESIZABLE_HEADER = { header: { cell: ResizableTitle } }
+
 interface CabinetDrawerProps {
   cabinet: CabinetSummary | null
   user: UserInfo
   initialAssetId?: number | null
   onClose: () => void
   onChanged?: () => void
+  onPrev?: () => void
+  onNext?: () => void
 }
 
 export default function CabinetDrawer({
@@ -86,14 +146,38 @@ export default function CabinetDrawer({
   initialAssetId,
   onClose,
   onChanged,
+  onPrev,
+  onNext,
 }: CabinetDrawerProps) {
   return (
     <Drawer
       open={cabinet !== null}
       onClose={onClose}
-      width={760}
+      width="min(90vw, 1080px)"
       destroyOnClose
       title={cabinet ? `机柜 ${cabinet.name}` : ''}
+      extra={
+        cabinet ? (
+          <Space size={0}>
+            <Button
+              size="small"
+              type="text"
+              icon={<LeftOutlined />}
+              disabled={!onPrev}
+              onClick={onPrev}
+              title="上一个机柜"
+            />
+            <Button
+              size="small"
+              type="text"
+              icon={<RightOutlined />}
+              disabled={!onNext}
+              onClick={onNext}
+              title="下一个机柜"
+            />
+          </Space>
+        ) : undefined
+      }
     >
       {cabinet && (
         <CabinetBody
@@ -133,6 +217,14 @@ function CabinetBody({
   const [createOpen, setCreateOpen] = useState(false)
   const [createU, setCreateU] = useState(1)
   const [statusLabel, setStatusLabel] = useState<Record<string, string>>({ in_use: '在用' })
+  // 资产表可拖拽列宽（自实现 resize 手柄，不引入额外依赖）。
+  const [assetColWidths, setAssetColWidths] = useState<Record<string, number>>({
+    bmc_ip: 120,
+    device: 160,
+    type: 76,
+    u: 72,
+    sn: 130,
+  })
 
   useEffect(() => {
     fetchDictionaries('asset_status')
@@ -191,6 +283,8 @@ function CabinetBody({
 
   // 搜索跳转：资产列表加载后，若命中目标设备则自动打开其详情（每个 id 只触发一次）。
   const lastOpenedInitial = useRef<number | null>(null)
+  // 机柜图滚动容器：展示机柜视图时默认滚动到设备所在位置（留上下余量）。
+  const cabinetScrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (initialAssetId == null || lastOpenedInitial.current === initialAssetId) return
     const target = assets.find((x) => x.id === initialAssetId)
@@ -199,6 +293,27 @@ function CabinetBody({
       openAsset(target)
     }
   }, [assets, initialAssetId])
+
+  // 机柜视图展示时，把机柜图滚动到设备所在 U 区间（优先当前选中设备），居中并留上下余量。
+  useEffect(() => {
+    if (view !== 'cabinet') return
+    const el = cabinetScrollRef.current
+    if (!el) return
+    const placed = assets.filter((x) => x.u_start != null && x.u_end != null)
+    if (placed.length === 0) {
+      el.scrollTop = 0
+      return
+    }
+    let minU = Math.min(...placed.map((x) => x.u_start!))
+    let maxU = Math.max(...placed.map((x) => x.u_end!))
+    if (selected && selected.u_start != null && selected.u_end != null) {
+      minU = selected.u_start
+      maxU = selected.u_end
+    }
+    const top = (cabinet.total_u - maxU) * SLOT_H
+    const bottom = (cabinet.total_u - minU + 1) * SLOT_H
+    el.scrollTop = (top + bottom) / 2 - el.clientHeight / 2
+  }, [view, assets, selected, cabinet.total_u])
 
   function onAssetSaved(updated: Asset) {
     setSelected(updated)
@@ -264,24 +379,38 @@ function CabinetBody({
       0,
     )
     const pct = cabinet.total_u > 0 ? Math.round((usedU / cabinet.total_u) * 100) : 0
-    const assetColumns: TableColumnsType<Asset> = [
-      {
-        title: '设备',
-        dataIndex: 'model',
-        render: (_, a) => <Typography.Text strong>{assetLabel(a)}</Typography.Text>,
-      },
-      {
-        title: '类型',
-        dataIndex: 'type',
-        width: 76,
-        render: (v: string) => <Tag color={v === 'switch' ? 'orange' : 'blue'}>{TYPE_LABEL[v] ?? v}</Tag>,
-      },
-      { title: 'U位', width: 72, render: (_, a) => uText(a) },
-      { title: 'SN', dataIndex: 'sn', width: 130, render: fmt },
-    ]
+    const assetColumns = (
+      [
+        { key: 'bmc_ip', title: 'BMC IP', dataIndex: 'bmc_ip', width: assetColWidths.bmc_ip, render: fmt },
+        {
+          key: 'device',
+          title: '设备',
+          dataIndex: 'model',
+          width: assetColWidths.device,
+          render: (_, a) => <Typography.Text strong>{assetLabel(a)}</Typography.Text>,
+        },
+        {
+          key: 'type',
+          title: '类型',
+          dataIndex: 'type',
+          width: assetColWidths.type,
+          render: (v: string) => <Tag color={v === 'switch' ? 'orange' : 'blue'}>{TYPE_LABEL[v] ?? v}</Tag>,
+        },
+        { key: 'u', title: 'U位', width: assetColWidths.u, render: (_, a) => uText(a) },
+        { key: 'sn', title: 'SN', dataIndex: 'sn', width: assetColWidths.sn, render: fmt },
+      ] as TableColumnsType<Asset>
+    ).map((col) => ({
+      ...col,
+      onHeaderCell: () =>
+        ({
+          width: col.width,
+          onResize: (w: number) =>
+            setAssetColWidths((prev) => ({ ...prev, [col.key as string]: w })),
+        }) as any,
+    }))
     return (
       <>
-        <Space size={16} wrap style={{ marginBottom: 12 }}>
+        <Space size={12} wrap style={{ marginBottom: 12 }}>
           <Typography.Text type="secondary">机房：{cabinet.room_code ?? '—'}</Typography.Text>
           <Typography.Text type="secondary">柜主：{cabinet.owner_name ?? '未指派'}</Typography.Text>
           <Progress
@@ -290,9 +419,7 @@ function CabinetBody({
             format={() => `${usedU}/${cabinet.total_u}U`}
             style={{ width: 160, margin: 0 }}
           />
-        </Space>
-
-        <Space size={12} style={{ marginBottom: 12 }}>
+          <Divider type="vertical" style={{ margin: '0 4px' }} />
           <Typography.Text type="secondary">图例：</Typography.Text>
           <Tag color="blue">服务器</Tag>
           <Tag color="orange">交换机</Tag>
@@ -300,6 +427,7 @@ function CabinetBody({
 
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
           <div
+            ref={cabinetScrollRef}
             style={{
               maxHeight: 'calc(100vh - 300px)',
               overflowY: 'auto',
@@ -335,6 +463,7 @@ function CabinetBody({
                 dataSource={assets}
                 size="small"
                 pagination={false}
+                components={RESIZABLE_HEADER}
                 onRow={(a) => ({ onClick: () => openAsset(a), style: { cursor: 'pointer' } })}
               />
             )}

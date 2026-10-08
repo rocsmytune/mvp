@@ -187,6 +187,7 @@ export interface Component {
   remark: string | null
   holder_id: number | null
   holder_name: string | null
+  holder_employee_no?: string | null
   updated_at: string
   // 列表页联表返回的定位上下文
   asset_sn?: string | null
