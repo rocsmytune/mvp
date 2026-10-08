@@ -1,22 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Form, Input, InputNumber, Modal, Select, message } from 'antd'
 import { getErrorMessage } from '../api/client'
-import { createComponent, updateComponent } from '../api'
+import { createComponent, fetchDictionaries, updateComponent } from '../api'
 import type { Component } from '../api/types'
 
-// 部件类别已知取值（导入 7 类 + PRD 数量管理项）；完整字典 seed 另属 backlog。
-const CATEGORY_OPTIONS = [
-  '硬盘',
-  '内存',
-  '主板',
-  '光模块',
-  'RAID',
-  '网卡',
-  'BMC插卡',
-  'CPU',
-  '线缆',
-  '风扇板',
-].map((c) => ({ value: c, label: c }))
+// 部件类别回退取值（字典接口拉取失败时兜底）。
+const FALLBACK_CATEGORIES = ['硬盘', '内存', '主板', '光模块', 'RAID', '网卡', 'BMC插卡', 'CPU', '线缆', '风扇板']
 
 function norm(v: string | null | undefined): string | null {
   if (v === '' || v === undefined) return null
@@ -33,7 +22,20 @@ interface Props {
 export default function ComponentFormModal({ assetId, component, onClose, onSaved }: Props) {
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
+  const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>(
+    FALLBACK_CATEGORIES.map((c) => ({ value: c, label: c })),
+  )
   const isEdit = component !== null
+
+  useEffect(() => {
+    fetchDictionaries('component_category')
+      .then((dicts) => {
+        if (dicts.length > 0) {
+          setCategoryOptions(dicts.map((d) => ({ value: d.code, label: d.label })))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (component) {
@@ -89,7 +91,7 @@ export default function ComponentFormModal({ assetId, component, onClose, onSave
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
         <Form.Item label="物料类型" name="category" rules={[{ required: true, message: '请选择物料类型' }]}>
-          <Select options={CATEGORY_OPTIONS} placeholder="选择物料类型" allowClear />
+          <Select options={categoryOptions} placeholder="选择物料类型" allowClear />
         </Form.Item>
         <Form.Item label="SN" name="sn">
           <Input placeholder="部件序列号（无 SN 可留空）" />

@@ -7,6 +7,10 @@ import type {
   Component,
   ComponentCreatePayload,
   ComponentUpdatePayload,
+  Dictionary,
+  DictionaryCreatePayload,
+  DictionaryUpdatePayload,
+  DictionaryUsage,
   ExportSnapshot,
   ImportBatch,
   ImportConfirmResponse,
@@ -70,6 +74,37 @@ export async function createUser(data: UserCreatePayload): Promise<UserAdmin> {
 
 export async function updateUser(id: number, data: UserUpdatePayload): Promise<UserAdmin> {
   const res = await api.patch<UserAdmin>(`/users/${id}`, data)
+  return res.data
+}
+
+// ---------- 字典管理 ----------
+
+export async function fetchDictionaries(kind?: string): Promise<Dictionary[]> {
+  const res = await api.get<{ total: number; items: Dictionary[] }>('/dictionaries', {
+    params: { kind },
+  })
+  return res.data.items
+}
+
+export async function createDictionary(data: DictionaryCreatePayload): Promise<Dictionary> {
+  const res = await api.post<Dictionary>('/dictionaries', data)
+  return res.data
+}
+
+export async function updateDictionary(
+  id: number,
+  data: DictionaryUpdatePayload,
+): Promise<Dictionary> {
+  const res = await api.patch<Dictionary>(`/dictionaries/${id}`, data)
+  return res.data
+}
+
+export async function deleteDictionary(id: number): Promise<void> {
+  await api.delete(`/dictionaries/${id}`)
+}
+
+export async function fetchDictionaryUsage(id: number): Promise<DictionaryUsage[]> {
+  const res = await api.get<DictionaryUsage[]>(`/dictionaries/${id}/usage`)
   return res.data
 }
 

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Form, Input, InputNumber, Modal, Select, message } from 'antd'
 import { getErrorMessage } from '../api/client'
-import { updateAsset } from '../api'
+import { fetchDictionaries, updateAsset } from '../api'
 import type { Asset, AssetUpdatePayload } from '../api/types'
 
-const STATUS_OPTIONS = [{ value: 'in_use', label: '在用' }]
+const FALLBACK_STATUS = [{ value: 'in_use', label: '在用' }]
 
 const SOURCE_LABEL: Record<string, string> = { manual: '手工', import: '导入', bmc: 'BMC' }
 
@@ -28,6 +28,17 @@ interface Props {
 export default function AssetEditModal({ asset, onClose, onSaved }: Props) {
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
+  const [statusOptions, setStatusOptions] = useState(FALLBACK_STATUS)
+
+  useEffect(() => {
+    fetchDictionaries('asset_status')
+      .then((dicts) => {
+        if (dicts.length > 0) {
+          setStatusOptions(dicts.map((d) => ({ value: d.code, label: d.label })))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (asset) {
@@ -122,7 +133,7 @@ export default function AssetEditModal({ asset, onClose, onSaved }: Props) {
           </Form.Item>
         </Form.Item>
         <Form.Item label="状态" name="status">
-          <Select options={STATUS_OPTIONS} />
+          <Select options={statusOptions} />
         </Form.Item>
         <Form.Item label="备注" name="remark">
           <Input.TextArea rows={2} placeholder="备注" />

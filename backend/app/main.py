@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api import assets, auth, cabinets, components, export, health, imports, overview, rooms, search, users
+from app.api import assets, auth, cabinets, components, dictionaries, export, health, imports, overview, rooms, search, users
 from app.core.config import settings
 
 app = FastAPI(title=settings.app_name)
@@ -16,3 +16,4 @@ app.include_router(imports.router)
 app.include_router(export.router)
 app.include_router(search.router)
 app.include_router(users.router)
+app.include_router(dictionaries.router)

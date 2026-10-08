@@ -33,6 +33,40 @@ export interface UserUpdatePayload {
   active?: boolean | null
 }
 
+// ---------- 字典管理 ----------
+
+export interface Dictionary {
+  id: number
+  kind: string // asset_status / component_category
+  code: string
+  label: string
+  sort_no: number
+  usage_count: number
+}
+
+export interface DictionaryUsage {
+  target_type: string // asset / component
+  sn: string | null
+  asset_sn: string | null
+  name: string | null
+  cabinet_name: string | null
+  u_start: number | null
+  u_end: number | null
+}
+
+export interface DictionaryCreatePayload {
+  kind: string
+  code: string
+  label: string
+  sort_no?: number
+}
+
+export interface DictionaryUpdatePayload {
+  code?: string | null
+  label?: string | null
+  sort_no?: number | null
+}
+
 export interface Room {
   id: number
   city: string | null

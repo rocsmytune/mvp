@@ -28,6 +28,7 @@ import {
   fetchAssetChangelogs,
   fetchAssets,
   fetchComponents,
+  fetchDictionaries,
 } from '../api'
 import type { Asset, CabinetSummary, ChangeLogEntry, Component, UserInfo } from '../api/types'
 import CabinetView from './CabinetView'
@@ -36,7 +37,6 @@ import AssetEditModal from './AssetEditModal'
 import ComponentFormModal from './ComponentFormModal'
 
 const TYPE_LABEL: Record<string, string> = { server: '服务器', switch: '交换机' }
-const STATUS_LABEL: Record<string, string> = { in_use: '在用' }
 const SOURCE_LABEL: Record<string, string> = { manual: '手工', import: '导入', bmc: 'BMC' }
 const SOURCE_COLOR: Record<string, string> = { manual: 'blue', import: 'green', bmc: 'purple' }
 const LOG_ACTION_LABEL: Record<string, string> = { create: '创建', update: '更新', delete: '删除' }
@@ -132,6 +132,17 @@ function CabinetBody({
   const [editingComponent, setEditingComponent] = useState<Component | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [createU, setCreateU] = useState(1)
+  const [statusLabel, setStatusLabel] = useState<Record<string, string>>({ in_use: '在用' })
+
+  useEffect(() => {
+    fetchDictionaries('asset_status')
+      .then((dicts) => {
+        if (dicts.length > 0) {
+          setStatusLabel(Object.fromEntries(dicts.map((d) => [d.code, d.label])))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // 与后端 can_manage_cabinet 对齐：两个管理员角色全权 / 该柜柜主本人。
   const canManage =
@@ -438,7 +449,7 @@ function CabinetBody({
           {fmt(a.bmc_ip)}
           {sourceTag(a.field_source, 'bmc_ip')}
         </Descriptions.Item>
-        <Descriptions.Item label="状态">{STATUS_LABEL[a.status] ?? a.status}</Descriptions.Item>
+        <Descriptions.Item label="状态">{statusLabel[a.status] ?? a.status}</Descriptions.Item>
         {a.type === 'switch' && (
           <Descriptions.Item label="挂账人">{fmt(a.holder_name)}</Descriptions.Item>
         )}

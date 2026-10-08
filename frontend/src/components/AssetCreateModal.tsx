@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Form, Input, InputNumber, Modal, Select, message } from 'antd'
 import { getErrorMessage } from '../api/client'
-import { createAsset } from '../api'
+import { createAsset, fetchDictionaries } from '../api'
 import type { Asset, AssetCreatePayload } from '../api/types'
 
 const TYPE_OPTIONS = [
   { value: 'server', label: '服务器' },
   { value: 'switch', label: '交换机' },
 ]
-const STATUS_OPTIONS = [{ value: 'in_use', label: '在用' }]
+const FALLBACK_STATUS = [{ value: 'in_use', label: '在用' }]
 
 function norm(v: string | null | undefined): string | null {
   if (v === '' || v === undefined) return null
@@ -26,6 +26,17 @@ interface Props {
 export default function AssetCreateModal({ cabinetId, cabinetName, uStart, onClose, onSaved }: Props) {
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
+  const [statusOptions, setStatusOptions] = useState(FALLBACK_STATUS)
+
+  useEffect(() => {
+    fetchDictionaries('asset_status')
+      .then((dicts) => {
+        if (dicts.length > 0) {
+          setStatusOptions(dicts.map((d) => ({ value: d.code, label: d.label })))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     form.setFieldsValue({
@@ -123,7 +134,7 @@ export default function AssetCreateModal({ cabinetId, cabinetName, uStart, onClo
           <Input placeholder="BMC / 管理口 IP" />
         </Form.Item>
         <Form.Item label="状态" name="status">
-          <Select options={STATUS_OPTIONS} />
+          <Select options={statusOptions} />
         </Form.Item>
         <Form.Item label="备注" name="remark">
           <Input.TextArea rows={2} placeholder="备注" />

@@ -6,6 +6,7 @@
 from app.core.db import SessionLocal
 from app.core.security import hash_password
 from app.models.cabinet import Cabinet
+from app.models.dictionary import Dictionary
 from app.models.room import Room
 from app.models.user import User
 
@@ -15,6 +16,21 @@ SEED_USERS = [
     ("000001", "物料管理员", "material_admin", "admin123"),
     ("000002", "柜主甲", "cabinet_owner", "owner123"),
     ("000003", "成员乙", "member", "member123"),
+]
+
+# (kind, code, label, sort_no) —— 字典基础值，可在页面编辑/新增，禁止删除。
+SEED_DICTIONARIES = [
+    ("asset_status", "in_use", "在用", 0),
+    ("component_category", "硬盘", "硬盘", 1),
+    ("component_category", "内存", "内存", 2),
+    ("component_category", "主板", "主板", 3),
+    ("component_category", "光模块", "光模块", 4),
+    ("component_category", "RAID", "RAID", 5),
+    ("component_category", "网卡", "网卡", 6),
+    ("component_category", "BMC插卡", "BMC插卡", 7),
+    ("component_category", "CPU", "CPU", 8),
+    ("component_category", "线缆", "线缆", 9),
+    ("component_category", "风扇板", "风扇板", 10),
 ]
 
 
@@ -35,6 +51,18 @@ def seed() -> None:
                 print(f"创建用户 {employee_no} {name} ({role})")
             else:
                 print(f"已存在 {employee_no} {name}，跳过")
+        db.commit()
+
+        # 字典基础值（幂等，按 kind/code 判断，已存在则跳过）。
+        for kind, code, label, sort_no in SEED_DICTIONARIES:
+            exists = (
+                db.query(Dictionary)
+                .filter(Dictionary.kind == kind, Dictionary.code == code)
+                .first()
+            )
+            if exists is None:
+                db.add(Dictionary(kind=kind, code=code, label=label, sort_no=sort_no))
+                print(f"创建字典 {kind}/{code} = {label}")
         db.commit()
 
         # 演示机房 + 机柜（构造数据）：A01-01 归属柜主甲，A01-02 归属物料管理员
