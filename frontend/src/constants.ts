@@ -1,8 +1,8 @@
 // 全局展示常量：角色 / 资产类型 / 字段来源 / 变更动作 / 字典类别。
 // 单一数据源，避免各页面重复定义导致术语、颜色不一致。
 
-// 应用版本（首个 release）。页面页脚/登录页统一展示 v1.0.0。
-export const APP_VERSION = '1.0.0'
+// 应用版本。页面页脚/登录页统一展示 v1.1.0。
+export const APP_VERSION = '1.1.0'
 
 export const ROLE_LABEL: Record<string, string> = {
   system_admin: '系统管理员',
