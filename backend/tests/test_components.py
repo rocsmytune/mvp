@@ -395,3 +395,98 @@ def test_update_component_move_asset_no_permission(crud_users):
             f"/api/components/{comp['id']}", json={"asset_id": dst["id"]}, headers=owner_h
         )
         assert r.status_code == 403
+
+
+# ---- E1：同类型下 SN 唯一 ----
+
+
+def test_component_sn_unique_same_category_rejected(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        asset = _create_asset(client, h, crud_users["cab_admin"].id, 22, 22)
+        r1 = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "硬盘", "sn": "DUP-SN-1"},
+            headers=h,
+        )
+        assert r1.status_code == 201
+        r2 = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "硬盘", "sn": "DUP-SN-1"},
+            headers=h,
+        )
+        assert r2.status_code == 409
+        assert "同类型下 SN 必须唯一" in r2.json()["detail"]
+
+
+def test_component_sn_same_across_category_allowed(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        asset = _create_asset(client, h, crud_users["cab_admin"].id, 21, 21)
+        r1 = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "硬盘", "sn": "X-SN-1"},
+            headers=h,
+        )
+        r2 = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "内存", "sn": "X-SN-1"},
+            headers=h,
+        )
+        assert r1.status_code == 201
+        assert r2.status_code == 201
+
+
+def test_component_sn_null_multiple_allowed(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        asset = _create_asset(client, h, crud_users["cab_admin"].id, 20, 20)
+        r1 = client.post(
+            "/api/components", json={"asset_id": asset["id"], "category": "硬盘"}, headers=h
+        )
+        r2 = client.post(
+            "/api/components", json={"asset_id": asset["id"], "category": "硬盘"}, headers=h
+        )
+        assert r1.status_code == 201
+        assert r2.status_code == 201
+
+
+def test_update_component_sn_conflict_rejected(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        asset = _create_asset(client, h, crud_users["cab_admin"].id, 19, 19)
+        a = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "硬盘", "sn": "DUP-SN-2"},
+            headers=h,
+        ).json()
+        b = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "硬盘", "sn": "DUP-SN-3"},
+            headers=h,
+        ).json()
+        r = client.patch(
+            f"/api/components/{b['id']}", json={"sn": "DUP-SN-2"}, headers=h
+        )
+        assert r.status_code == 409
+
+
+def test_update_component_category_conflict_rejected(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        asset = _create_asset(client, h, crud_users["cab_admin"].id, 18, 18)
+        disk = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "硬盘", "sn": "X-SN-2"},
+            headers=h,
+        ).json()
+        mem = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "内存", "sn": "X-SN-2"},
+            headers=h,
+        ).json()
+        # 把内存改到「硬盘」类型 → 与已存在的 硬盘/X-SN-2 冲突
+        r = client.patch(
+            f"/api/components/{mem['id']}", json={"category": "硬盘"}, headers=h
+        )
+        assert r.status_code == 409

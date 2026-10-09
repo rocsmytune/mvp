@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -13,6 +13,15 @@ class Component(Base):
     __table_args__ = (
         Index("idx_components_sn", "sn"),
         Index("idx_components_asset", "asset_id"),
+        # 同类型（category）下 SN 唯一（E1）：未删除且 SN 非空才参与约束，
+        # 空 SN（数量管理类）与已软删除部件不冲突。
+        Index(
+            "uq_components_category_sn",
+            "category",
+            "sn",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL AND sn IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

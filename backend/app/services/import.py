@@ -23,12 +23,14 @@ from app.services import changelog
 
 
 def _summary(resolved: list[ResolvedRow]) -> dict:
-    counts = {"new": 0, "update": 0, "error": 0, "warning": 0}
+    counts = {"new": 0, "update": 0, "no_change": 0, "error": 0, "warning": 0}
     for r in resolved:
         if r.action == Action.ERROR:
             counts["error"] += 1
         elif r.action == Action.NEW:
             counts["new"] += 1
+        elif r.action == Action.NO_CHANGE:
+            counts["no_change"] += 1
         else:
             counts["update"] += 1
         if any(i.severity == Severity.WARNING for i in r.all_issues):
@@ -186,6 +188,15 @@ def _commit_row(db: Session, operator: User, r: ResolvedRow, batch_id: int) -> d
             "action": r.action.value,
             "result": "skipped",
             "message": msg,
+        }
+
+    # 无变动点：重复导入且字段完全一致，跳过，不产生无意义更新。
+    if r.action == Action.NO_CHANGE:
+        return {
+            "row_no": row_no,
+            "action": r.action.value,
+            "result": "skipped",
+            "message": "无变化，跳过",
         }
 
     target_cabinet = (

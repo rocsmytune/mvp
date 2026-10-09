@@ -249,18 +249,22 @@ def test_component_move_cross_cabinet(resolve_env):
     assert fields["asset_id"].new == resolve_env["server"].id
 
 
-def test_component_sn_duplicate_warning(resolve_env):
+def test_component_same_sn_different_category_not_dedup(resolve_env):
+    """E1：去重键是「物料类型 + SN」，同 SN 但不同类型不互相覆盖，应判为新增。"""
     db = resolve_env["db"]
-    db.add_all(
-        [
-            Component(asset_id=resolve_env["server"].id, category="硬盘", sn="T-IMP-COMP-01"),
-            Component(asset_id=resolve_env["server"].id, category="硬盘", sn="T-IMP-COMP-01"),
-        ]
-    )
+    comp = Component(asset_id=resolve_env["server"].id, category="内存", sn="T-IMP-COMP-01")
+    db.add(comp)
     db.commit()
-    res = resolve_row(db, _parsed(holder=""))
+
+    # 导入「硬盘」类型、同 SN → 与库中「内存」不是同一去重键 → 新增
+    res = resolve_row(db, _parsed(material_type="硬盘", holder=""))
+    assert res.action is Action.NEW
+    assert res.existing_component is None
+
+    # 导入「内存」类型、同 SN → 命中库中「内存」→ 覆盖更新
+    res = resolve_row(db, _parsed(material_type="内存", holder=""))
     assert res.action is Action.UPDATE
-    assert any("SN 重复" in i.message for i in res.issues)
+    assert res.existing_component.id == comp.id
 
 
 # ---- 整机 / 交换机（资产本身）----
@@ -282,7 +286,7 @@ def test_server_ignores_holder(resolve_env):
         resolve_env["db"],
         _parsed(material_type="整机", sn="T-IMP-SERVER-01", holder="900010 测试挂账人"),
     )
-    assert res.action is Action.UPDATE
+    assert res.action is Action.NO_CHANGE
     assert any("不挂账" in i.message for i in res.issues)
     assert res.holder_id is None
     assert all(c.field not in ("holder_id", "holder_name") for c in res.changes)
@@ -317,7 +321,7 @@ def test_asset_type_mismatch_warning(resolve_env):
     res = resolve_row(
         db, _parsed(material_type="整机", bmc_ip="192.0.2.30", sn="", machine_sn="", holder="")
     )
-    assert res.action is Action.UPDATE
+    assert res.action is Action.NO_CHANGE
     assert any("类型不符" in i.message for i in res.issues)
 
 
@@ -333,3 +337,35 @@ def test_resolve_rows_batch(resolve_env):
     resolved = resolve_rows(db, rows)
     assert resolved[0].action is Action.NEW
     assert resolved[1].action is Action.ERROR
+
+
+def test_same_batch_duplicate_second_row_error(resolve_env):
+    """E2：同批内同类型+SN 多行 → 取首行，后续行报错跳过。"""
+    db = resolve_env["db"]
+    resolved = resolve_rows(db, [_parsed(holder=""), _parsed(holder="")])
+    assert resolved[0].action is Action.NEW
+    assert resolved[1].action is Action.ERROR
+    assert any("同批内" in i.message for i in resolved[1].issues)
+
+
+def test_same_batch_same_sn_different_type_not_dedup(resolve_env):
+    """E2：同批内同 SN 但不同类型不算重复，各自新增。"""
+    db = resolve_env["db"]
+    rows = [_parsed(material_type="硬盘", holder=""), _parsed(material_type="内存", holder="")]
+    resolved = resolve_rows(db, rows)
+    assert resolved[0].action is Action.NEW
+    assert resolved[1].action is Action.NEW
+
+
+def test_no_change_resolves_to_no_change(resolve_env):
+    """E2：重复导入且字段完全一致 → no_change（无变动点）。"""
+    db = resolve_env["db"]
+    comp = Component(
+        asset_id=resolve_env["server"].id, category="硬盘",
+        sn="T-IMP-COMP-01", name="测试硬盘", material_code="CODE-1",
+    )
+    db.add(comp)
+    db.commit()
+    res = resolve_row(db, _parsed(holder=""))
+    assert res.action is Action.NO_CHANGE
+    assert res.changes == []

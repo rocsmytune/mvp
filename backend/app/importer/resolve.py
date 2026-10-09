@@ -4,7 +4,7 @@
 1. BMC IP → 资产 → 机柜 → U 位（找不到 → error，提示先补录）
 2. 整机SN 与库中不符 → warning
 3. 挂账人工号 → users → holder_id / holder_name（匹配不到 → 保留原文）
-4. 去重：部件按 SN 找已有；整机/交换机即定位到的资产本身
+4. 去重：部件按「物料类型 + SN」找已有；整机/交换机即定位到的资产本身
 5. 分类 new / update / error，update 产出字段级变动点（含跨机柜移动）
 
 本模块只做查询与分类，不写库、不改权限；落库与权限校验在提交服务（增量4）。
@@ -25,6 +25,7 @@ from app.models.user import User
 class Action(str, Enum):
     NEW = "new"
     UPDATE = "update"
+    NO_CHANGE = "no_change"  # 定位到已有记录且无任何变动点，跳过入库
     ERROR = "error"
 
 
@@ -105,7 +106,11 @@ def _resolve_component(
 
     matches = (
         db.query(Component)
-        .filter(Component.sn == row.sn, Component.deleted_at.is_(None))
+        .filter(
+            Component.category == row.type_or_category,
+            Component.sn == row.sn,
+            Component.deleted_at.is_(None),
+        )
         .order_by(Component.id)
         .all()
     )
@@ -114,7 +119,7 @@ def _resolve_component(
             RowIssue(
                 row.row_no,
                 Severity.WARNING,
-                f"SN 重复：库中存在 {len(matches)} 个同名部件，默认按最早一条更新，请人工确认",
+                f"同类型下 SN 重复：库中存在 {len(matches)} 个「{row.type_or_category}」SN {row.sn} 的部件，默认按最早一条更新，请人工确认",
             )
         )
 
@@ -149,6 +154,18 @@ def _resolve_component(
             if old != value:
                 changes.append(FieldChange(field, old, value))
 
+    # 无任何变动点（重复导入且字段完全一致）→ 跳过入库
+    if not changes:
+        return ResolvedRow(
+            row=row,
+            action=Action.NO_CHANGE,
+            asset=asset,
+            existing_component=comp,
+            holder_id=holder_id,
+            holder_name=holder_name,
+            issues=issues,
+        )
+
     return ResolvedRow(
         row=row,
         action=Action.UPDATE,
@@ -182,7 +199,7 @@ def _resolve_asset(
 
     return ResolvedRow(
         row=row,
-        action=Action.UPDATE,
+        action=Action.UPDATE if changes else Action.NO_CHANGE,
         asset=asset,
         holder_id=holder_id,
         holder_name=holder_name,
@@ -261,4 +278,27 @@ def resolve_row(db: Session, row: ParsedRow) -> ResolvedRow:
 
 
 def resolve_rows(db: Session, rows: list[ParsedRow]) -> list[ResolvedRow]:
-    return [resolve_row(db, row) for row in rows]
+    """批量解析，并在批内做同类型+SN 去重（同批取首行，后续行报错跳过，避免撞唯一索引）。"""
+    resolved: list[ResolvedRow] = []
+    seen: dict[tuple[str, str], int] = {}
+    for row in rows:
+        r = resolve_row(db, row)
+        # 部件按去重键 (category, sn) 批内去重：首行正常，后续重复行标 error 跳过。
+        if r.action != Action.ERROR and row.target == Target.COMPONENT and row.sn:
+            key = (row.type_or_category or "", row.sn)
+            first = seen.get(key)
+            if first is not None:
+                r.action = Action.ERROR
+                r.existing_component = None
+                r.changes = []
+                r.issues.append(
+                    RowIssue(
+                        row.row_no,
+                        Severity.ERROR,
+                        f"同批内与第 {first} 行物料类型与 SN 重复，跳过（同批取首行）",
+                    )
+                )
+            else:
+                seen[key] = row.row_no
+        resolved.append(r)
+    return resolved

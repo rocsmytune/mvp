@@ -56,12 +56,33 @@ def _resolve_holder(db: Session, raw: str | None) -> tuple[int | None, str | Non
     return holder_id, holder_name
 
 
+def _ensure_sn_unique(
+    db: Session, category: str, sn: str | None, exclude_id: int | None = None
+) -> None:
+    """同类型（category）下 SN 必须唯一（E1）。空 SN 与软删除部件不参与；数据库部分唯一索引兜底，这里给友好错误。"""
+    if not sn:
+        return
+    query = db.query(Component).filter(
+        Component.category == category,
+        Component.sn == sn,
+        Component.deleted_at.is_(None),
+    )
+    if exclude_id is not None:
+        query = query.filter(Component.id != exclude_id)
+    if query.first() is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"物料类型「{category}」下已存在 SN {sn}，同类型下 SN 必须唯一",
+        )
+
+
 def create_component(db: Session, operator: User, data: ComponentCreate) -> Component:
     asset = _get_asset(db, data.asset_id)
     _ensure_can_manage_asset(db, operator, asset)
 
     payload = data.model_dump()
     holder_id, holder_name = _resolve_holder(db, payload.pop("holder_name", None))
+    _ensure_sn_unique(db, payload.get("category"), payload.get("sn"))
     comp = Component(
         **payload, holder_id=holder_id, holder_name=holder_name, dept_id=settings.dept_id
     )
@@ -94,6 +115,14 @@ def update_component(
     _ensure_can_manage_asset(db, operator, asset)
 
     changes = data.model_dump(exclude_unset=True)
+
+    # E1：同类型下 SN 唯一。按变更后的 category/sn 校验（未提供则沿用现值）。
+    _ensure_sn_unique(
+        db,
+        changes.get("category", comp.category),
+        changes.get("sn", comp.sn),
+        exclude_id=comp.id,
+    )
 
     # 跨设备迁移（所在服务器）：校验目标设备存在 + 目标机柜权限，写 asset_id 变更日志。
     current_asset = asset

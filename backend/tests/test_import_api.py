@@ -72,6 +72,7 @@ def test_upload_preview_new_component(crud_users):
         "total": 1,
         "new": 1,
         "update": 0,
+        "no_change": 0,
         "error": 0,
         "warning": 0,
     }
@@ -391,3 +392,79 @@ def test_list_batches(crud_users):
     body = resp.json()
     assert body["total"] >= 1
     assert body["items"][0]["status"] == "previewed"
+
+
+# ---------- E2：同批重复 / 无变化 ----------
+
+
+def test_duplicate_same_batch_second_row_skipped(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        _mk_server(client, h, crud_users["cab_admin"].id, "192.0.2.10", sn="SRV-1")
+        up = _upload(client, h, [_row(), _row()], file_name="dup.xlsx")
+
+    assert up["summary"]["new"] == 1
+    assert up["summary"]["error"] == 1
+    assert [r["action"] for r in up["rows"]] == ["new", "error"]
+    assert "同批内" in up["rows"][1]["issues"][0]["message"]
+
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        resp = _confirm(client, h, up["batch_id"])
+    body = resp.json()
+    assert body["summary"] == {"total": 2, "created": 1, "updated": 0, "skipped": 1}
+
+    # 只有首行入库，且不撞唯一索引（仅一条 DISK-1）
+    db = SessionLocal()
+    try:
+        n = (
+            db.query(Component)
+            .filter(Component.sn == "DISK-1", Component.deleted_at.is_(None))
+            .count()
+        )
+        assert n == 1
+    finally:
+        db.close()
+
+
+def test_no_change_skipped_on_confirm(crud_users):
+    server_id = None
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        srv = _mk_server(client, h, crud_users["cab_admin"].id, "192.0.2.10", sn="SRV-1")
+        server_id = srv["id"]
+
+    db = SessionLocal()
+    try:
+        comp = Component(asset_id=server_id, category="硬盘", sn="DISK-1", name="SAS-960G")
+        db.add(comp)
+        db.commit()
+        db.refresh(comp)
+        comp_id = comp.id
+    finally:
+        db.close()
+
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        up = _upload(client, h, [_row(material_name="SAS-960G")])
+        assert up["summary"]["no_change"] == 1
+        assert up["summary"]["update"] == 0
+        assert up["rows"][0]["action"] == "no_change"
+        resp = _confirm(client, h, up["batch_id"])
+    body = resp.json()
+    assert body["summary"]["updated"] == 0
+    assert body["summary"]["skipped"] == 1
+    assert body["rows"][0]["result"] == "skipped"
+    assert "无变化" in body["rows"][0]["message"]
+
+    db = SessionLocal()
+    try:
+        # 未产生 update 日志
+        upd = (
+            db.query(ChangeLog)
+            .filter(ChangeLog.target_id == comp_id, ChangeLog.action == "update")
+            .count()
+        )
+        assert upd == 0
+    finally:
+        db.close()

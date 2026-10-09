@@ -350,6 +350,7 @@ export interface ImportSummary {
   total: number
   new: number
   update: number
+  no_change: number
   error: number
   warning: number
 }

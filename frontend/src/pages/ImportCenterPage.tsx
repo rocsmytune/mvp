@@ -43,6 +43,7 @@ import { fmt, fmtTime, uText } from '../lib/format'
 const ACTION_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   new: { label: '新增', color: 'success', icon: <PlusCircleOutlined /> },
   update: { label: '更新', color: 'processing', icon: <SyncOutlined /> },
+  no_change: { label: '无变化', color: 'default', icon: <CheckCircleFilled /> },
   error: { label: '错误', color: 'error', icon: <CloseCircleFilled /> },
 }
 
@@ -376,6 +377,9 @@ export default function ImportCenterPage({ isAdmin }: { isAdmin: boolean }) {
               <Tag color="processing" icon={<SyncOutlined />}>
                 更新 {summary.update}
               </Tag>
+              {summary.no_change > 0 && (
+                <Tag icon={<CheckCircleFilled />}>无变化 {summary.no_change}</Tag>
+              )}
               {summary.warning > 0 && (
                 <Tag color="warning" icon={<WarningFilled />}>
                   警告 {summary.warning}
@@ -411,7 +415,7 @@ export default function ImportCenterPage({ isAdmin }: { isAdmin: boolean }) {
               </Button>
               {!hasCommittable && (
                 <Typography.Text type="secondary">
-                  没有可入库的行（全部为错误），请修正后重新上传
+                  没有可入库的行（无新增或更新），请检查后重新上传
                 </Typography.Text>
               )}
             </Space>

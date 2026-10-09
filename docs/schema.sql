@@ -97,7 +97,10 @@ CREATE TABLE components (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   deleted_at    TIMESTAMPTZ
 );
-CREATE INDEX idx_components_sn ON components(sn);   -- 不加唯一约束，重复只提示
+CREATE INDEX idx_components_sn ON components(sn);   -- 通用 SN 索引（用于检索）
+-- E1：相同类型（category）下 SN 必须唯一；空 SN 与已软删除部件不参与（部分唯一索引）。
+CREATE UNIQUE INDEX uq_components_category_sn ON components(category, sn)
+  WHERE deleted_at IS NULL AND sn IS NOT NULL;
 CREATE INDEX idx_components_asset ON components(asset_id);
 
 CREATE TABLE change_logs (

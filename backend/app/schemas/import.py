@@ -36,7 +36,7 @@ class FieldChangeOut(BaseModel):
 
 class PreviewRowOut(BaseModel):
     row_no: int
-    action: str  # new / update / error
+    action: str  # new / update / no_change / error
     material_type: str | None
     sn: str | None
     bmc_ip: str | None
@@ -55,6 +55,7 @@ class SummaryOut(BaseModel):
     total: int
     new: int
     update: int
+    no_change: int
     error: int
     warning: int
 
