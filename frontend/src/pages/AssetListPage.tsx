@@ -1,47 +1,107 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Input, Select, Space, Table, Tabs, Tag, message } from 'antd'
+import { Button, Card, Table, Tabs, Tag, message } from 'antd'
 import type { TableColumnsType } from 'antd'
+import { FilterOutlined } from '@ant-design/icons'
 import { getErrorMessage } from '../api/client'
-import { fetchAssetPage, fetchComponentPage, fetchDictionaries } from '../api'
-import type { Asset, Component, Dictionary } from '../api/types'
-
-const TYPE_LABEL: Record<string, string> = { server: '整机', switch: '交换机' }
-const TYPE_COLOR: Record<string, string> = { server: 'blue', switch: 'orange' }
-
-function uText(uStart: number | null, uEnd: number | null): string {
-  if (uStart == null) return '—'
-  return uStart === uEnd ? `${uStart}U` : `${uStart}-${uEnd}U`
-}
+import {
+  fetchAssetFacets,
+  fetchAssetPage,
+  fetchComponentFacets,
+  fetchComponentPage,
+  fetchDictionaries,
+} from '../api'
+import { TYPE_COLOR, TYPE_LABEL } from '../constants'
+import { uText } from '../lib/format'
+import FacetFilterDropdown from '../components/FacetFilterDropdown'
+import type { FacetOption } from '../components/FacetFilterDropdown'
+import type { Asset, Component, Dictionary, Facets } from '../api/types'
 
 interface AssetListPageProps {
   onNavigate: (cabinetId: number, assetId: number) => void
 }
 
-// 设备 Tab：只读浏览 + 搜索/筛选 + 服务端分页，点击行跳转到机柜详情。
+// 列筛选：数据列 key → 后端查询参数名。
+const ASSET_FILTER_PARAMS: Record<string, string> = {
+  type: 'types',
+  model: 'models',
+  sn: 'sns',
+  ip_inband: 'ip_inbands',
+  bmc_ip: 'bmc_ips',
+  status: 'statuses',
+  room_code: 'room_codes',
+  cabinet_name: 'cabinet_names',
+}
+
+const COMPONENT_FILTER_PARAMS: Record<string, string> = {
+  category: 'categories',
+  sn: 'sns',
+  material_code: 'material_codes',
+  holder_name: 'holder_names',
+  room_code: 'room_codes',
+  cabinet_name: 'cabinet_names',
+}
+
+function buildParams(filters: Record<string, string[]>, mapping: Record<string, string>) {
+  const p: Record<string, string[]> = {}
+  for (const [key, vals] of Object.entries(filters)) {
+    if (vals.length) p[mapping[key]] = vals
+  }
+  return p
+}
+
+// 生成表头漏斗筛选的列属性（server-side 过滤，antd 不做本地过滤）。
+function filterProps(
+  key: string,
+  filters: Record<string, string[]>,
+  facets: Facets,
+  labelOf: (v: string) => string,
+  applyFilter: (key: string, vals: string[]) => void,
+) {
+  const selected = filters[key] ?? []
+  const options: FacetOption[] = (facets[key] ?? []).map((f) => ({
+    value: f.value,
+    label: labelOf(f.value),
+    count: f.count,
+  }))
+  return {
+    filtered: selected.length > 0,
+    filterIcon: () => (
+      <FilterOutlined style={{ color: selected.length > 0 ? '#1677ff' : undefined }} />
+    ),
+    filterDropdown: ({ close }: { close: () => void }) => (
+      <FacetFilterDropdown
+        options={options}
+        selected={selected}
+        onApply={(vals) => {
+          applyFilter(key, vals)
+          close()
+        }}
+      />
+    ),
+  }
+}
+
+// 设备 Tab：只读浏览 + 表头列筛选 + 服务端分页，点击行跳转到机柜详情。
 function AssetTab({ onNavigate }: AssetListPageProps) {
   const [rows, setRows] = useState<Asset[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [q, setQ] = useState('')
-  const [type, setType] = useState<string | undefined>(undefined)
-  const [status, setStatus] = useState<string | undefined>(undefined)
+  const [filters, setFilters] = useState<Record<string, string[]>>({})
+  const [facets, setFacets] = useState<Facets>({})
   const [statusOptions, setStatusOptions] = useState<Dictionary[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
   useEffect(() => {
-    fetchDictionaries('asset_status')
-      .then(setStatusOptions)
-      .catch(() => setStatusOptions([]))
+    fetchDictionaries('asset_status').then(setStatusOptions).catch(() => setStatusOptions([]))
+    fetchAssetFacets().then(setFacets).catch(() => setFacets({}))
   }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetchAssetPage({
-        q: q || undefined,
-        type,
-        status,
+        ...buildParams(filters, ASSET_FILTER_PARAMS),
         skip: (page - 1) * pageSize,
         limit: pageSize,
       })
@@ -52,11 +112,25 @@ function AssetTab({ onNavigate }: AssetListPageProps) {
     } finally {
       setLoading(false)
     }
-  }, [q, type, status, page, pageSize])
+  }, [filters, page, pageSize])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  const applyFilter = useCallback((key: string, vals: string[]) => {
+    setPage(1)
+    setFilters((f) => ({ ...f, [key]: vals }))
+  }, [])
+
+  const labelOf = useCallback(
+    (v: string, key: string) => {
+      if (key === 'type') return TYPE_LABEL[v] ?? v
+      if (key === 'status') return statusOptions.find((d) => d.code === v)?.label ?? v
+      return v
+    },
+    [statusOptions],
+  )
 
   const columns: TableColumnsType<Asset> = [
     {
@@ -64,11 +138,36 @@ function AssetTab({ onNavigate }: AssetListPageProps) {
       dataIndex: 'type',
       width: 76,
       render: (v: string) => <Tag color={TYPE_COLOR[v] ?? 'default'}>{TYPE_LABEL[v] ?? v}</Tag>,
+      ...filterProps('type', filters, facets, (v) => labelOf(v, 'type'), applyFilter),
     },
-    { title: '型号', dataIndex: 'model', width: 140, render: (v) => v || '—' },
-    { title: 'SN', dataIndex: 'sn', width: 130, render: (v) => v || '—' },
-    { title: '带内IP', dataIndex: 'ip_inband', width: 130, render: (v) => v || '—' },
-    { title: 'BMC IP', dataIndex: 'bmc_ip', width: 130, render: (v) => v || '—' },
+    {
+      title: '型号',
+      dataIndex: 'model',
+      width: 140,
+      render: (v) => v || '—',
+      ...filterProps('model', filters, facets, (v) => v, applyFilter),
+    },
+    {
+      title: 'SN',
+      dataIndex: 'sn',
+      width: 130,
+      render: (v) => v || '—',
+      ...filterProps('sn', filters, facets, (v) => v, applyFilter),
+    },
+    {
+      title: '带内IP',
+      dataIndex: 'ip_inband',
+      width: 130,
+      render: (v) => v || '—',
+      ...filterProps('ip_inband', filters, facets, (v) => v, applyFilter),
+    },
+    {
+      title: 'BMC IP',
+      dataIndex: 'bmc_ip',
+      width: 130,
+      render: (v) => v || '—',
+      ...filterProps('bmc_ip', filters, facets, (v) => v, applyFilter),
+    },
     {
       title: '状态',
       dataIndex: 'status',
@@ -77,13 +176,21 @@ function AssetTab({ onNavigate }: AssetListPageProps) {
         const d = statusOptions.find((x) => x.code === v)
         return <Tag>{d?.label ?? v}</Tag>
       },
+      ...filterProps('status', filters, facets, (v) => labelOf(v, 'status'), applyFilter),
     },
-    { title: '机房', dataIndex: 'room_code', width: 100, render: (v) => v || '—' },
+    {
+      title: '机房',
+      dataIndex: 'room_code',
+      width: 100,
+      render: (v) => v || '—',
+      ...filterProps('room_code', filters, facets, (v) => v, applyFilter),
+    },
     {
       title: '机柜',
       dataIndex: 'cabinet_name',
       width: 110,
       render: (v) => (v ? v : <Tag>待整理池</Tag>),
+      ...filterProps('cabinet_name', filters, facets, (v) => v, applyFilter),
     },
     { title: 'U位', width: 80, render: (_, a) => uText(a.u_start, a.u_end) },
     {
@@ -104,53 +211,7 @@ function AssetTab({ onNavigate }: AssetListPageProps) {
   ]
 
   return (
-    <Card
-      title="设备列表"
-      extra={
-        <Space wrap>
-          <Input.Search
-            placeholder="SN / 资产编号 / IP / 型号"
-            allowClear
-            style={{ width: 240 }}
-            onSearch={(v) => {
-              setPage(1)
-              setQ(v)
-            }}
-            onChange={(e) => {
-              if (!e.target.value) {
-                setPage(1)
-                setQ('')
-              }
-            }}
-          />
-          <Select
-            placeholder="类型"
-            allowClear
-            style={{ width: 110 }}
-            value={type}
-            onChange={(v) => {
-              setPage(1)
-              setType(v)
-            }}
-            options={[
-              { value: 'server', label: '整机' },
-              { value: 'switch', label: '交换机' },
-            ]}
-          />
-          <Select
-            placeholder="状态"
-            allowClear
-            style={{ width: 110 }}
-            value={status}
-            onChange={(v) => {
-              setPage(1)
-              setStatus(v)
-            }}
-            options={statusOptions.map((d) => ({ value: d.code, label: d.label }))}
-          />
-        </Space>
-      }
-    >
+    <Card title="设备列表" extra="点击表头漏斗按列筛选">
       <Table
         rowKey="id"
         columns={columns}
@@ -174,13 +235,13 @@ function AssetTab({ onNavigate }: AssetListPageProps) {
   )
 }
 
-// 物料 Tab：只读浏览 + 搜索/筛选 + 服务端分页，点击行跳转到所在整机详情。
+// 物料 Tab：只读浏览 + 表头列筛选 + 服务端分页，点击行跳转到所在整机详情。
 function ComponentTab({ onNavigate }: AssetListPageProps) {
   const [rows, setRows] = useState<Component[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [q, setQ] = useState('')
-  const [category, setCategory] = useState<string | undefined>(undefined)
+  const [filters, setFilters] = useState<Record<string, string[]>>({})
+  const [facets, setFacets] = useState<Facets>({})
   const [categoryOptions, setCategoryOptions] = useState<Dictionary[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -189,14 +250,14 @@ function ComponentTab({ onNavigate }: AssetListPageProps) {
     fetchDictionaries('component_category')
       .then(setCategoryOptions)
       .catch(() => setCategoryOptions([]))
+    fetchComponentFacets().then(setFacets).catch(() => setFacets({}))
   }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetchComponentPage({
-        q: q || undefined,
-        category,
+        ...buildParams(filters, COMPONENT_FILTER_PARAMS),
         skip: (page - 1) * pageSize,
         limit: pageSize,
       })
@@ -207,21 +268,78 @@ function ComponentTab({ onNavigate }: AssetListPageProps) {
     } finally {
       setLoading(false)
     }
-  }, [q, category, page, pageSize])
+  }, [filters, page, pageSize])
 
   useEffect(() => {
     void load()
   }, [load])
 
+  const applyFilter = useCallback((key: string, vals: string[]) => {
+    setPage(1)
+    setFilters((f) => ({ ...f, [key]: vals }))
+  }, [])
+
+  const labelOf = useCallback(
+    (v: string, key: string) => {
+      if (key === 'category') return categoryOptions.find((d) => d.code === v)?.label ?? v
+      return v
+    },
+    [categoryOptions],
+  )
+
   const columns: TableColumnsType<Component> = [
-    { title: '物料类型', dataIndex: 'category', width: 100, render: (v: string) => <Tag color="purple">{v}</Tag> },
-    { title: '名称/型号', width: 160, render: (_, c) => c.name || c.model || '—' },
-    { title: 'SN', dataIndex: 'sn', width: 130, render: (v) => v || '—' },
-    { title: '物料编码', dataIndex: 'material_code', width: 120, render: (v) => v || '—' },
-    { title: '所在整机', width: 160, render: (_, c) => c.asset_sn || c.asset_model || `#${c.asset_id}` },
-    { title: '机房', dataIndex: 'room_code', width: 100, render: (v) => v || '—' },
-    { title: '机柜', dataIndex: 'cabinet_name', width: 110, render: (v) => v || '—' },
-    { title: '挂账人', dataIndex: 'holder_name', width: 100, render: (v) => v || '—' },
+    {
+      title: '物料类型',
+      dataIndex: 'category',
+      width: 100,
+      render: (v: string) => <Tag color="purple">{v}</Tag>,
+      ...filterProps('category', filters, facets, (v) => labelOf(v, 'category'), applyFilter),
+    },
+    {
+      title: '名称/型号',
+      width: 160,
+      render: (_, c) => c.name || c.model || '—',
+    },
+    {
+      title: 'SN',
+      dataIndex: 'sn',
+      width: 130,
+      render: (v) => v || '—',
+      ...filterProps('sn', filters, facets, (v) => v, applyFilter),
+    },
+    {
+      title: '物料编码',
+      dataIndex: 'material_code',
+      width: 120,
+      render: (v) => v || '—',
+      ...filterProps('material_code', filters, facets, (v) => v, applyFilter),
+    },
+    {
+      title: '所在整机',
+      width: 160,
+      render: (_, c) => c.asset_sn || c.asset_model || `#${c.asset_id}`,
+    },
+    {
+      title: '机房',
+      dataIndex: 'room_code',
+      width: 100,
+      render: (v) => v || '—',
+      ...filterProps('room_code', filters, facets, (v) => v, applyFilter),
+    },
+    {
+      title: '机柜',
+      dataIndex: 'cabinet_name',
+      width: 110,
+      render: (v) => v || '—',
+      ...filterProps('cabinet_name', filters, facets, (v) => v, applyFilter),
+    },
+    {
+      title: '挂账人',
+      dataIndex: 'holder_name',
+      width: 100,
+      render: (v) => v || '—',
+      ...filterProps('holder_name', filters, facets, (v) => v, applyFilter),
+    },
     {
       title: '操作',
       width: 70,
@@ -240,39 +358,7 @@ function ComponentTab({ onNavigate }: AssetListPageProps) {
   ]
 
   return (
-    <Card
-      title="物料列表"
-      extra={
-        <Space wrap>
-          <Input.Search
-            placeholder="SN / 型号 / 名称 / 物料编码"
-            allowClear
-            style={{ width: 260 }}
-            onSearch={(v) => {
-              setPage(1)
-              setQ(v)
-            }}
-            onChange={(e) => {
-              if (!e.target.value) {
-                setPage(1)
-                setQ('')
-              }
-            }}
-          />
-          <Select
-            placeholder="物料类型"
-            allowClear
-            style={{ width: 140 }}
-            value={category}
-            onChange={(v) => {
-              setPage(1)
-              setCategory(v)
-            }}
-            options={categoryOptions.map((d) => ({ value: d.code, label: d.label }))}
-          />
-        </Space>
-      }
-    >
+    <Card title="物料列表" extra="点击表头漏斗按列筛选">
       <Table
         rowKey="id"
         columns={columns}

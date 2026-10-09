@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { AutoComplete, Input, Tag } from 'antd'
+import type { InputRef } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import { searchGlobal } from '../api'
 import type { SearchResult } from '../api/types'
@@ -34,8 +35,24 @@ export default function GlobalSearch({ onNavigate }: GlobalSearchProps) {
   const [open, setOpen] = useState(false)
   const timer = useRef<number | undefined>(undefined)
   const resultMap = useRef(new Map<string, SearchResult>())
+  const inputRef = useRef<InputRef>(null)
 
   useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  // 快捷键「/」聚焦搜索框（内网巡检常用，免鼠标点击）。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      const typing =
+        target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      if (e.key === '/' && !typing) {
+        e.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   function run(kw: string) {
     setLoading(true)
@@ -104,7 +121,7 @@ export default function GlobalSearch({ onNavigate }: GlobalSearchProps) {
   return (
     <AutoComplete
       value={value}
-      style={{ width: 240 }}
+      style={{ width: 280 }}
       options={options}
       open={open}
       onSearch={onSearch}
@@ -113,7 +130,7 @@ export default function GlobalSearch({ onNavigate }: GlobalSearchProps) {
       notFoundContent={loading ? '搜索中…' : '无匹配结果'}
       allowClear
     >
-      <Input prefix={<SearchOutlined />} placeholder="搜索 SN / IP / 资产编号" />
+      <Input ref={inputRef} prefix={<SearchOutlined />} placeholder="搜索 SN / IP / 资产编号（按 / 聚焦）" />
     </AutoComplete>
   )
 }

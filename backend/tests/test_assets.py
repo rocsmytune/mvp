@@ -240,3 +240,62 @@ def test_list_assets_filters_and_location(crud_users):
         # q 按型号搜索（新增字段 model）
         r = client.get("/api/assets", params={"q": "R740"}, headers=h)
         assert [a["sn"] for a in r.json()["items"]] == ["SRV-1"]
+
+
+def test_list_assets_multivalue_filters(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        cid = crud_users["cab_admin"].id
+        client.post(
+            "/api/assets",
+            json=_create_payload(cid, 41, 41, sn="SRV-ABC-1", model="Dell R740"),
+            headers=h,
+        )
+        client.post(
+            "/api/assets",
+            json=_create_payload(cid, 42, 42, sn="SRV-XYZ-2", model="HPE DL380"),
+            headers=h,
+        )
+        client.post(
+            "/api/assets",
+            json=_create_payload(cid, 43, 43, sn="SW-ABC-3", type="switch"),
+            headers=h,
+        )
+
+        # 枚举列精确：types 多值 OR
+        r = client.get(
+            "/api/assets", params=[("types", "server"), ("types", "switch")], headers=h
+        )
+        assert r.json()["total"] == 3
+        r = client.get("/api/assets", params=[("types", "switch")], headers=h)
+        assert [a["sn"] for a in r.json()["items"]] == ["SW-ABC-3"]
+
+        # 文本列包含：sns 命中「ABC」子串（列内 OR）
+        r = client.get("/api/assets", params=[("sns", "ABC")], headers=h)
+        assert sorted(a["sn"] for a in r.json()["items"]) == ["SRV-ABC-1", "SW-ABC-3"]
+
+        # 多列 AND：类型精确 + SN 包含
+        r = client.get(
+            "/api/assets", params=[("types", "server"), ("sns", "XYZ")], headers=h
+        )
+        assert [a["sn"] for a in r.json()["items"]] == ["SRV-XYZ-2"]
+
+
+def test_assets_facets(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        cid = crud_users["cab_admin"].id
+        client.post(
+            "/api/assets", json=_create_payload(cid, 41, 41, sn="SRV-1", model="R740"), headers=h
+        )
+        client.post(
+            "/api/assets", json=_create_payload(cid, 42, 42, sn="SW-1", type="switch"), headers=h
+        )
+
+        r = client.get("/api/assets/facets", headers=h)
+        assert r.status_code == 200
+        body = r.json()
+        assert {f["value"]: f["count"] for f in body["type"]} == {"server": 1, "switch": 1}
+        assert {f["value"]: f["count"] for f in body["model"]}["R740"] == 1
+        assert {f["value"]: f["count"] for f in body["room_code"]}["T-ROOM-1"] == 2
+        assert {f["value"]: f["count"] for f in body["cabinet_name"]}["T-A01-02"] == 2

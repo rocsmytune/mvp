@@ -150,6 +150,51 @@ def test_holder_unmatched_warning(resolve_env):
     assert any("未匹配到用户" in i.message for i in res.issues)
 
 
+def test_holder_name_only_matches(resolve_env):
+    res = resolve_row(resolve_env["db"], _parsed(holder="测试挂账人"))
+    assert res.holder_id == resolve_env["holder"].id
+    assert res.holder_name == "测试挂账人"
+
+
+def test_holder_name_only_multiple_warning(resolve_env):
+    db = resolve_env["db"]
+    dup = User(
+        employee_no="900011", name="测试挂账人", role="member",
+        password_hash=hash_password("x"),
+    )
+    db.add(dup)
+    db.commit()
+    try:
+        res = resolve_row(db, _parsed(holder="测试挂账人"))
+        assert res.holder_id is None
+        assert res.holder_name == "测试挂账人"
+        assert any("无法唯一定位" in i.message for i in res.issues)
+    finally:
+        db.query(User).filter(User.employee_no == "900011").delete(
+            synchronize_session=False
+        )
+        db.commit()
+
+
+def test_holder_emp_no_with_mismatched_name_warning(resolve_env):
+    res = resolve_row(resolve_env["db"], _parsed(holder="900010 错误姓名"))
+    assert res.holder_id == resolve_env["holder"].id
+    assert res.holder_name == "错误姓名"
+    assert any("不一致" in i.message for i in res.issues)
+
+
+def test_holder_format_emp_first_no_space(resolve_env):
+    res = resolve_row(resolve_env["db"], _parsed(holder="900010测试挂账人"))
+    assert res.holder_id == resolve_env["holder"].id
+    assert res.holder_name == "测试挂账人"
+
+
+def test_holder_format_name_first(resolve_env):
+    res = resolve_row(resolve_env["db"], _parsed(holder="测试挂账人900010"))
+    assert res.holder_id == resolve_env["holder"].id
+    assert res.holder_name == "测试挂账人"
+
+
 # ---- 部件去重 / 变动点 ----
 
 

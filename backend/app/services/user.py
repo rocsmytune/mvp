@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.models.user import User
 from app.permissions import require_admin, require_system_admin
+from app.schemas.auth import RegisterRequest
 from app.schemas.user import UserCreate, UserUpdate
 from app.services import changelog
 
@@ -61,6 +62,33 @@ def list_cabinet_owners(db: Session, operator: User) -> list[User]:
         .order_by(User.employee_no)
         .all()
     )
+
+
+def register_user(db: Session, data: RegisterRequest) -> User:
+    """自助注册：仅开放 member / cabinet_owner，注册后 active 直接可用。
+
+    ChangeLog 的 operator 记为注册者本人（此时用户已 flush、拿到 id）。
+    """
+    _check_employee_no_unique(db, data.employee_no)
+
+    user = User(
+        employee_no=data.employee_no,
+        name=data.name,
+        role=data.role,
+        auth_source="local",
+        password_hash=hash_password(data.password),
+        active=True,
+        dept_id=settings.dept_id,
+    )
+    db.add(user)
+    db.flush()
+    changelog.log(
+        db, operator=user, target_type="user", target_id=user.id,
+        cabinet_id=None, action="create",
+    )
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def create_user(db: Session, operator: User, data: UserCreate) -> User:

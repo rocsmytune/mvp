@@ -6,6 +6,7 @@ from app.core.db import get_db
 from app.models.user import User
 from app.schemas.asset import AssetCreate, AssetListOut, AssetOut, AssetUpdate
 from app.schemas.changelog import ChangeLogOut
+from app.schemas.facet import FacetValue
 from app.services import asset as asset_service
 from app.services import changelog
 
@@ -28,6 +29,14 @@ def list_assets(
     type: str | None = None,
     status: str | None = None,
     q: str | None = None,
+    types: list[str] | None = Query(None),
+    statuses: list[str] | None = Query(None),
+    models: list[str] | None = Query(None),
+    sns: list[str] | None = Query(None),
+    ip_inbands: list[str] | None = Query(None),
+    bmc_ips: list[str] | None = Query(None),
+    room_codes: list[str] | None = Query(None),
+    cabinet_names: list[str] | None = Query(None),
     skip: int = 0,
     limit: int = Query(50, le=200),
     db: Session = Depends(get_db),
@@ -40,10 +49,26 @@ def list_assets(
         asset_type=type,
         status=status,
         q=q,
+        types=types,
+        statuses=statuses,
+        models=models,
+        sns=sns,
+        ip_inbands=ip_inbands,
+        bmc_ips=bmc_ips,
+        room_codes=room_codes,
+        cabinet_names=cabinet_names,
         skip=skip,
         limit=limit,
     )
     return AssetListOut(total=total, items=items)
+
+
+@router.get("/facets", response_model=dict[str, list[FacetValue]])
+def list_asset_facets(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return asset_service.list_asset_facets(db)
 
 
 @router.get("/{asset_id}", response_model=AssetOut)

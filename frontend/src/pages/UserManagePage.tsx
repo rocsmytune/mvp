@@ -4,20 +4,10 @@ import type { TableColumnsType } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { getErrorMessage } from '../api/client'
 import { createUser, fetchUsers, updateUser } from '../api'
+import { ROLE_COLOR, ROLE_LABEL } from '../constants'
+import { fmtTime } from '../lib/format'
 import type { UserAdmin } from '../api/types'
 
-const ROLE_LABEL: Record<string, string> = {
-  system_admin: '系统管理员',
-  material_admin: '物料管理员',
-  cabinet_owner: '柜主',
-  member: '成员',
-}
-const ROLE_COLOR: Record<string, string> = {
-  system_admin: 'red',
-  material_admin: 'geekblue',
-  cabinet_owner: 'green',
-  member: 'default',
-}
 const ROLE_OPTIONS = Object.keys(ROLE_LABEL).map((v) => ({ value: v, label: ROLE_LABEL[v] }))
 
 interface UserFormValues {
@@ -26,11 +16,6 @@ interface UserFormValues {
   role?: string
   password?: string
   active?: boolean
-}
-
-function fmtTime(iso: string): string {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('zh-CN')
 }
 
 export default function UserManagePage() {

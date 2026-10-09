@@ -51,18 +51,43 @@ class ResolvedRow:
         return self.row.issues + self.issues
 
 
-def _resolve_holder(
+def resolve_holder(
     db: Session, emp_no: str | None, name: str | None
 ) -> tuple[int | None, str | None, str | None]:
-    """拆工号查 users：命中返回 (id, 姓名, None)；不命中返回 (None, 原文, 警告)。"""
-    if emp_no is None:
+    """按工号/姓名解析挂账人 → (holder_id, holder_name, warning)。
+
+    - 工号优先：命中 → 关联；姓名与库中不符 → 以工号为准 + 警告；未命中 → 保留原文 + 警告。
+    - 纯姓名：唯一命中 → 关联；多个同名 → 保留原文 + 警告；不命中 → 保留原文、无警告。
+    """
+    if emp_no is None and name is None:
         return None, None, None
-    user = db.query(User).filter(User.employee_no == emp_no).first()
-    if user is not None:
-        # 姓名以表格为准（快照）；表格缺姓名时用库中姓名兜底
-        return user.id, (name or user.name), None
-    original = f"{emp_no} {name}".strip() if name else emp_no
-    return None, original, f"挂账人工号未匹配到用户：{emp_no}"
+
+    if emp_no is not None:
+        user = db.query(User).filter(User.employee_no == emp_no).first()
+        if user is not None:
+            # 姓名以表格为准（快照）；表格缺姓名时用库中姓名兜底
+            resolved_name = name or user.name
+            warning = None
+            if name and name != user.name:
+                warning = (
+                    f"挂账人工号 {emp_no} 对应姓名「{user.name}」，与输入「{name}」"
+                    "不一致，已按工号关联"
+                )
+            return user.id, resolved_name, warning
+        original = f"{emp_no} {name}".strip() if name else emp_no
+        return None, original, f"挂账人工号未匹配到用户：{emp_no}"
+
+    # 纯姓名：按姓名匹配
+    users = db.query(User).filter(User.name == name).all()
+    if len(users) == 1:
+        return users[0].id, users[0].name, None
+    if len(users) > 1:
+        return (
+            None,
+            name,
+            f"挂账人姓名「{name}」匹配到 {len(users)} 个用户，无法唯一定位，请改用工号",
+        )
+    return None, name, None
 
 
 def _resolve_component(
@@ -219,7 +244,7 @@ def resolve_row(db: Session, row: ParsedRow) -> ResolvedRow:
     holder_id: int | None = None
     holder_name: str | None = None
     if row.target == Target.COMPONENT or row.type_or_category == "switch":
-        holder_id, holder_name, holder_warning = _resolve_holder(
+        holder_id, holder_name, holder_warning = resolve_holder(
             db, row.holder_emp_no, row.holder_name
         )
         if holder_warning:

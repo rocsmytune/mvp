@@ -15,6 +15,7 @@ import type {
   DictionaryUpdatePayload,
   DictionaryUsage,
   ExportSnapshot,
+  Facets,
   ImportBatch,
   ImportConfirmResponse,
   ImportRow,
@@ -52,11 +53,16 @@ export async function fetchComponents(assetId: number): Promise<Component[]> {
   return res.data.items
 }
 
-// 设备列表页：服务端分页 + 过滤（q/type/status）。
+// 设备列表页：服务端分页 + 过滤（多值列筛选）。
 export async function fetchAssetPage(params?: {
-  q?: string
-  type?: string
-  status?: string
+  types?: string[]
+  statuses?: string[]
+  models?: string[]
+  sns?: string[]
+  ip_inbands?: string[]
+  bmc_ips?: string[]
+  room_codes?: string[]
+  cabinet_names?: string[]
   skip?: number
   limit?: number
 }): Promise<{ total: number; items: Asset[] }> {
@@ -64,14 +70,30 @@ export async function fetchAssetPage(params?: {
   return res.data
 }
 
-// 物料列表页：服务端分页 + 过滤（q/category）。
+// 物料列表页：服务端分页 + 过滤（多值列筛选）。
 export async function fetchComponentPage(params?: {
-  q?: string
-  category?: string
+  categories?: string[]
+  sns?: string[]
+  material_codes?: string[]
+  holder_names?: string[]
+  room_codes?: string[]
+  cabinet_names?: string[]
   skip?: number
   limit?: number
 }): Promise<{ total: number; items: Component[] }> {
   const res = await api.get<{ total: number; items: Component[] }>('/components', { params })
+  return res.data
+}
+
+// 设备列筛选 facet：各列去重值 + 计数（表头漏斗用）。
+export async function fetchAssetFacets(): Promise<Facets> {
+  const res = await api.get<Facets>('/assets/facets')
+  return res.data
+}
+
+// 物料列筛选 facet：各列去重值 + 计数（表头漏斗用）。
+export async function fetchComponentFacets(): Promise<Facets> {
+  const res = await api.get<Facets>('/components/facets')
   return res.data
 }
 

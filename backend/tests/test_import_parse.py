@@ -120,6 +120,21 @@ def test_parse_holder_extra_whitespace():
     assert name == "测试 用户"  # 首个空白后整体保留，内部空格不动
 
 
+@pytest.mark.parametrize(
+    "raw,emp,name",
+    [
+        ("900002 测试用户", "900002", "测试用户"),   # 工号在前 + 空格
+        ("900002测试用户", "900002", "测试用户"),    # 工号在前 + 紧贴
+        ("测试用户 900002", "900002", "测试用户"),   # 姓名在前 + 空格
+        ("测试用户900002", "900002", "测试用户"),    # 姓名在前 + 紧贴
+        ("900002", "900002", None),                  # 纯工号
+        ("测试用户", None, "测试用户"),              # 纯姓名
+    ],
+)
+def test_parse_holder_formats(raw, emp, name):
+    assert parse_holder(raw) == (emp, name)
+
+
 def test_holder_flows_into_row():
     row = parse_row(1, _row(holder="900001 张三"))
     assert row.holder_emp_no == "900001"

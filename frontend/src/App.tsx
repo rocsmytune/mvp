@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button, Layout, Menu, Space, Tag, Typography } from 'antd'
+import { DatabaseOutlined } from '@ant-design/icons'
+import { ROLE_LABEL, APP_VERSION } from './constants'
 import { api } from './api/client'
 import type { UserInfo } from './api/types'
 import LoginPage from './pages/LoginPage'
@@ -10,13 +12,6 @@ import DictionaryManagePage from './pages/DictionaryManagePage'
 import CabinetManagePage from './pages/CabinetManagePage'
 import AssetListPage from './pages/AssetListPage'
 import GlobalSearch from './components/GlobalSearch'
-
-const ROLE_LABEL: Record<string, string> = {
-  system_admin: '系统管理员',
-  material_admin: '物料管理员',
-  cabinet_owner: '柜主',
-  member: '成员',
-}
 
 // 业务管理员（系统管理员 / 物料管理员）：具备物料/机柜/导入/导出权限。
 const isBusinessAdmin = (role: string) => role === 'system_admin' || role === 'material_admin'
@@ -79,27 +74,29 @@ export default function App() {
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 24,
-          background: '#001529',
+          gap: 16,
           paddingInline: 24,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+        <Space size={8} style={{ flexShrink: 0 }}>
+          <DatabaseOutlined style={{ color: '#fff', fontSize: 20 }} />
           <Typography.Title level={4} style={{ color: '#fff', margin: 0, whiteSpace: 'nowrap' }}>
             Kunpeng KNOW
           </Typography.Title>
-          <Menu
-            theme="dark"
-            mode="horizontal"
-            selectedKeys={[page]}
-            onClick={({ key }) => setPage(key as PageKey)}
-            items={menuItems}
-            style={{ minWidth: 240, background: 'transparent', borderBottom: 'none' }}
-          />
-        </div>
+          <Typography.Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, whiteSpace: 'nowrap' }}>
+            v{APP_VERSION}
+          </Typography.Text>
+        </Space>
+        <Menu
+          theme="dark"
+          mode="horizontal"
+          selectedKeys={[page]}
+          onClick={({ key }) => setPage(key as PageKey)}
+          items={menuItems}
+          style={{ flex: 1, minWidth: 0, background: 'transparent', borderBottom: 'none' }}
+        />
         <GlobalSearch onNavigate={handleSearchNavigate} />
-        <Space>
+        <Space style={{ flexShrink: 0 }}>
           <Typography.Text style={{ color: '#fff' }}>
             {user.name}（{user.employee_no}）
           </Typography.Text>

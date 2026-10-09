@@ -1,4 +1,5 @@
 import { Tooltip } from 'antd'
+import { uText } from '../lib/format'
 import type { Asset } from '../api/types'
 
 // 机柜 U 位图：原生 SVG 绘制机柜框架（U 号标签 + 导轨 + 槽位线），
@@ -23,11 +24,6 @@ const TYPE_META: Record<string, { label: string; bgGrad: string; border: string;
     border: '#ffd591',
     text: '#d46b08',
   },
-}
-
-function uText(a: Asset): string {
-  if (a.u_start == null || a.u_end == null) return '—'
-  return a.u_start === a.u_end ? `${a.u_start}U` : `${a.u_start}-${a.u_end}U`
 }
 
 interface CabinetViewProps {
@@ -112,8 +108,8 @@ export default function CabinetView({ assets, totalU = 45, onSelect, onPlace }: 
         const top = (totalU - a.u_end) * SLOT_H + 1
         const blockH = (a.u_end - a.u_start + 1) * SLOT_H - 2
         const meta = TYPE_META[a.type] ?? TYPE_META.server
-        const primary = a.model || a.sn || a.asset_tag || meta.label
-        const secondary = a.model ? a.sn || null : null
+        const primary = a.model || a.bmc_ip || a.asset_tag || meta.label
+        const secondary = a.model ? a.bmc_ip || null : null
         return (
           <Tooltip
             key={a.id}
@@ -122,9 +118,8 @@ export default function CabinetView({ assets, totalU = 45, onSelect, onPlace }: 
                 <div>
                   {meta.label} · {a.model ?? '—'}
                 </div>
-                <div>SN：{a.sn ?? '—'}</div>
                 <div>BMC IP：{a.bmc_ip ?? '—'}</div>
-                <div>U位：{uText(a)}</div>
+                <div>U位：{uText(a.u_start, a.u_end)}</div>
               </div>
             }
           >

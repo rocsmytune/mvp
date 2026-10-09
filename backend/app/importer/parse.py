@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from ipaddress import ip_address
@@ -43,8 +44,8 @@ class ParsedRow:
     material_code: str | None
     material_name: str | None
     remark: str | None
-    holder_emp_no: str | None       # 挂账人工号（首个空白前）
-    holder_name: str | None         # 挂账人姓名（首个空白后），resolve 阶段兜底
+    holder_emp_no: str | None       # 挂账人工号（纯数字，可在姓名前或后）
+    holder_name: str | None         # 挂账人姓名（非数字部分），resolve 阶段兜底
     issues: list[RowIssue] = field(default_factory=list)
 
     @property
@@ -79,14 +80,30 @@ def _clean(value: object) -> str | None:
 
 
 def parse_holder(raw: object) -> tuple[str | None, str | None]:
-    """拆「工号 姓名」→ (工号, 姓名)。首个空白分割；无空白则整段当工号、姓名留空。"""
+    """拆「挂账人」→ (工号, 姓名)。工号=纯数字，姓名=其余非数字部分。
+
+    支持多种书写形式：
+    - 「00886677 石铭哲」/「00886677石铭哲」  工号在前（可空格分隔或紧贴）
+    - 「石铭哲 00886677」/「石铭哲00886677」  姓名在前
+    - 「00886677」→ (工号, None)
+    - 「石铭哲」  → (None, 姓名)
+    """
     text = _clean(raw)
     if not text:
         return None, None
-    parts = text.split(None, 1)
-    if len(parts) == 1:
-        return parts[0], None
-    return parts[0], parts[1]
+
+    # 工号在前：数字开头，后接（可空）姓名
+    m = re.match(r"^(\d+)\s*(.*)$", text)
+    if m:
+        return m.group(1), _clean(m.group(2))
+
+    # 姓名在前：结尾是纯数字工号
+    m = re.match(r"^(.*?)\s*(\d+)$", text)
+    if m:
+        return m.group(2), _clean(m.group(1))
+
+    # 纯姓名
+    return None, text
 
 
 def validate_ip(raw: object) -> bool:

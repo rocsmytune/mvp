@@ -4,22 +4,14 @@ import type { TableColumnsType } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { getErrorMessage } from '../api/client'
 import { createDictionary, deleteDictionary, fetchDictionaries, fetchDictionaryUsage, updateDictionary } from '../api'
+import { DICT_KIND_LABEL } from '../constants'
+import { uText } from '../lib/format'
 import type { Dictionary, DictionaryUsage } from '../api/types'
-
-const KIND_LABEL: Record<string, string> = {
-  asset_status: '资产状态',
-  component_category: '部件物料类型',
-}
 
 interface DictFormValues {
   code?: string
   label?: string
   sort_no?: number
-}
-
-function uText(u: DictionaryUsage): string {
-  if (u.u_start == null || u.u_end == null) return '—'
-  return u.u_start === u.u_end ? `${u.u_start}U` : `${u.u_start}-${u.u_end}U`
 }
 
 export default function DictionaryManagePage() {
@@ -176,7 +168,7 @@ export default function DictionaryManagePage() {
     { title: 'SN', dataIndex: 'sn', width: 140, render: (v) => v ?? '—' },
     { title: '父资产SN', dataIndex: 'asset_sn', width: 140, render: (v) => v ?? '—' },
     { title: '机柜', dataIndex: 'cabinet_name', render: (v) => v ?? '—' },
-    { title: 'U位', width: 80, render: (_, u) => uText(u) },
+    { title: 'U位', width: 80, render: (_, u) => uText(u.u_start, u.u_end) },
   ]
 
   function renderKindTable(kind: string) {
@@ -218,15 +210,15 @@ export default function DictionaryManagePage() {
             新增字典项
           </Button>
         }
-        items={Object.keys(KIND_LABEL).map((kind) => ({
+        items={Object.keys(DICT_KIND_LABEL).map((kind) => ({
           key: kind,
-          label: KIND_LABEL[kind],
+          label: DICT_KIND_LABEL[kind],
           children: renderKindTable(kind),
         }))}
       />
 
       <Modal
-        title={editing ? '编辑字典项' : `新增字典项（${KIND_LABEL[creatingKind ?? ''] ?? ''}）`}
+        title={editing ? '编辑字典项' : `新增字典项（${DICT_KIND_LABEL[creatingKind ?? ''] ?? ''}）`}
         open={modalOpen}
         onOk={() => form.submit()}
         onCancel={closeForm}

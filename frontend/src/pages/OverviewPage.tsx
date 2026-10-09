@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Card, Col, Empty, message, Progress, Row, Select, Space, Spin, Statistic, Typography } from 'antd'
+import { Card, Col, Empty, message, Progress, Row, Select, Skeleton, Space, Statistic, Typography } from 'antd'
+import { CheckCircleOutlined, ClusterOutlined, HddOutlined, WarningOutlined } from '@ant-design/icons'
 import { fetchOverview } from '../api'
 import type { CabinetSummary, Overview, UserInfo } from '../api/types'
 import CabinetDrawer from '../components/CabinetDrawer'
@@ -65,9 +66,20 @@ export default function OverviewPage({ user, focus, onFocusHandled }: OverviewPa
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
-        <Spin size="large" />
-      </div>
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Row gutter={16}>
+          {[0, 1, 2, 3].map((i) => (
+            <Col key={i} xs={12} md={6}>
+              <Card>
+                <Skeleton active title paragraph={{ rows: 1 }} />
+              </Card>
+            </Col>
+          ))}
+        </Row>
+        <Card>
+          <Skeleton active paragraph={{ rows: 6 }} />
+        </Card>
+      </Space>
     )
   }
 
@@ -98,22 +110,22 @@ export default function OverviewPage({ user, focus, onFocusHandled }: OverviewPa
       <Row gutter={16}>
         <Col xs={12} md={6}>
           <Card>
-            <Statistic title="已上架设备" value={data.placed_count} valueStyle={{ color: '#3f8600' }} />
+            <Statistic title="已上架设备" value={data.placed_count} valueStyle={{ color: '#3f8600' }} prefix={<CheckCircleOutlined />} />
           </Card>
         </Col>
         <Col xs={12} md={6}>
           <Card>
-            <Statistic title="待整理设备" value={data.pool_count} valueStyle={{ color: '#cf1322' }} />
+            <Statistic title="待整理设备" value={data.pool_count} valueStyle={{ color: '#cf1322' }} prefix={<WarningOutlined />} />
           </Card>
         </Col>
         <Col xs={12} md={6}>
           <Card>
-            <Statistic title="设备总数" value={totalDevices} />
+            <Statistic title="设备总数" value={totalDevices} prefix={<HddOutlined />} />
           </Card>
         </Col>
         <Col xs={12} md={6}>
           <Card>
-            <Statistic title="机柜总数" value={data.cabinets.length} />
+            <Statistic title="机柜总数" value={data.cabinets.length} prefix={<ClusterOutlined />} />
           </Card>
         </Col>
       </Row>

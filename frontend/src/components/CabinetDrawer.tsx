@@ -39,28 +39,8 @@ import CabinetView, { SLOT_H } from './CabinetView'
 import AssetCreateModal from './AssetCreateModal'
 import AssetEditModal from './AssetEditModal'
 import ComponentFormModal from './ComponentFormModal'
-
-const TYPE_LABEL: Record<string, string> = { server: '服务器', switch: '交换机' }
-const SOURCE_LABEL: Record<string, string> = { manual: '手工', import: '导入', bmc: 'BMC' }
-const SOURCE_COLOR: Record<string, string> = { manual: 'blue', import: 'green', bmc: 'purple' }
-const LOG_ACTION_LABEL: Record<string, string> = { create: '创建', update: '更新', delete: '删除' }
-const LOG_ACTION_COLOR: Record<string, string> = { create: 'green', update: 'blue', delete: 'red' }
-
-function fmt(v: string | null | undefined): string {
-  return v === null || v === undefined || v === '' ? '—' : v
-}
-
-function fmtTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-function uText(a: Asset): string {
-  if (a.u_start == null || a.u_end == null) return '—'
-  return a.u_start === a.u_end ? `${a.u_start}U` : `${a.u_start}-${a.u_end}U`
-}
+import { LOG_ACTION_COLOR, LOG_ACTION_LABEL, SOURCE_COLOR, SOURCE_LABEL, TYPE_LABEL } from '../constants'
+import { fmt, fmtTime, uText } from '../lib/format'
 
 function assetLabel(a: Asset): string {
   return a.model || a.sn || a.asset_tag || TYPE_LABEL[a.type] || a.type
@@ -396,7 +376,7 @@ function CabinetBody({
           width: assetColWidths.type,
           render: (v: string) => <Tag color={v === 'switch' ? 'orange' : 'blue'}>{TYPE_LABEL[v] ?? v}</Tag>,
         },
-        { key: 'u', title: 'U位', width: assetColWidths.u, render: (_, a) => uText(a) },
+        { key: 'u', title: 'U位', width: assetColWidths.u, render: (_, a) => uText(a.u_start, a.u_end) },
         { key: 'sn', title: 'SN', dataIndex: 'sn', width: assetColWidths.sn, render: fmt },
       ] as TableColumnsType<Asset>
     ).map((col) => ({
@@ -568,7 +548,7 @@ function CabinetBody({
           {sourceTag(a.field_source, 'cpu_model')}
         </Descriptions.Item>
         <Descriptions.Item label="资产标签">{fmt(a.asset_tag)}</Descriptions.Item>
-        <Descriptions.Item label="U位">{uText(a)}</Descriptions.Item>
+        <Descriptions.Item label="U位">{uText(a.u_start, a.u_end)}</Descriptions.Item>
         <Descriptions.Item label="带内IP">
           {fmt(a.ip_inband)}
           {sourceTag(a.field_source, 'ip_inband')}

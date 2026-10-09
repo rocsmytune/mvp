@@ -1,6 +1,5 @@
 """部件（Component）业务逻辑。所有写操作在此，统一写 ChangeLog 并做权限校验。"""
 
-import re
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -8,6 +7,8 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.importer.parse import parse_holder
+from app.importer.resolve import resolve_holder
 from app.models.asset import Asset
 from app.models.cabinet import Cabinet
 from app.models.component import Component
@@ -16,6 +17,12 @@ from app.models.user import User
 from app.permissions import ensure_can_manage_cabinet
 from app.schemas.component import ComponentCreate, ComponentUpdate
 from app.services import changelog
+from app.services.facets import facet_values
+
+
+def _contains(col, values: list[str]):
+    """文本列「包含」匹配：任一 value 命中即满足（列内 OR）。"""
+    return or_(*[col.ilike(f"%{v}%") for v in values])
 
 
 def _get_asset(db: Session, asset_id: int) -> Asset:
@@ -35,25 +42,18 @@ def _ensure_can_manage_asset(db: Session, operator: User, asset: Asset) -> None:
     ensure_can_manage_cabinet(operator, _get_cabinet(db, asset.cabinet_id))
 
 
-# 挂账人「工号 姓名」：本系统工号为纯数字，姓名可为中英文等任意内容。
-_HOLDER_RE = re.compile(r"^(\d+)(?:\s+(.+))?$")
-
-
 def _resolve_holder(db: Session, raw: str | None) -> tuple[int | None, str | None]:
-    """把挂账人输入「工号 姓名」解析为 (holder_id, holder_name)。
+    """把挂账人输入解析为 (holder_id, holder_name)。复用 importer 的解析与匹配逻辑。
 
-    工号命中 users → (user.id, 姓名快照或库中姓名)；工号未命中或纯姓名 → 存原文、holder_id 为空。
+    工号/姓名任意形式均可识别；纯姓名唯一命中也会关联到对应用户。
     """
     if not raw:
         return None, None
-    text = raw.strip()
-    m = _HOLDER_RE.match(text)
-    if m:
-        emp_no, name = m.group(1), m.group(2)
-        user = db.query(User).filter(User.employee_no == emp_no).first()
-        if user is not None:
-            return user.id, (name or user.name)
-    return None, text
+    emp_no, name = parse_holder(raw)
+    if emp_no is None and name is None:
+        return None, None
+    holder_id, holder_name, _warning = resolve_holder(db, emp_no, name)
+    return holder_id, holder_name
 
 
 def create_component(db: Session, operator: User, data: ComponentCreate) -> Component:
@@ -163,6 +163,12 @@ def list_components(
     asset_id: int | None = None,
     category: str | None = None,
     q: str | None = None,
+    categories: list[str] | None = None,
+    sns: list[str] | None = None,
+    material_codes: list[str] | None = None,
+    holder_names: list[str] | None = None,
+    room_codes: list[str] | None = None,
+    cabinet_names: list[str] | None = None,
     skip: int = 0,
     limit: int = 100,
 ) -> tuple[list[Component], int]:
@@ -181,6 +187,35 @@ def list_components(
                 Component.material_code.ilike(like),
             )
         )
+
+    # 多值列筛选（枚举列精确、文本列包含），多列 AND、列内 OR。
+    if categories:
+        base = base.filter(Component.category.in_(categories))
+    if sns:
+        base = base.filter(_contains(Component.sn, sns))
+    if material_codes:
+        base = base.filter(_contains(Component.material_code, material_codes))
+    if holder_names:
+        base = base.filter(_contains(Component.holder_name, holder_names))
+    # 机柜/机房为联表列，经父资产子查询过滤，避免污染下方 outerjoin 的列取用。
+    if cabinet_names:
+        base = base.filter(
+            Component.asset_id.in_(
+                db.query(Asset.id)
+                .join(Cabinet, Cabinet.id == Asset.cabinet_id)
+                .filter(_contains(Cabinet.name, cabinet_names))
+            )
+        )
+    if room_codes:
+        base = base.filter(
+            Component.asset_id.in_(
+                db.query(Asset.id)
+                .join(Cabinet, Cabinet.id == Asset.cabinet_id)
+                .join(Room, Room.id == Cabinet.room_id)
+                .filter(Room.code.in_(room_codes))
+            )
+        )
+
     total = base.count()
     rows = (
         base.join(Asset, Asset.id == Component.asset_id)
@@ -205,3 +240,20 @@ def list_components(
         comp.holder_employee_no = holder_employee_no
         items.append(comp)
     return items, total
+
+
+def list_component_facets(db: Session) -> dict[str, list[dict]]:
+    """物料列表各筛选列的去重值 + 计数（未删除部件）。"""
+    base = db.query(Component).filter(Component.deleted_at.is_(None))
+    loc = base.join(Asset, Asset.id == Component.asset_id).outerjoin(
+        Cabinet, Cabinet.id == Asset.cabinet_id
+    )
+    room = loc.outerjoin(Room, Room.id == Cabinet.room_id)
+    return {
+        "category": facet_values(base, Component.category),
+        "sn": facet_values(base, Component.sn),
+        "material_code": facet_values(base, Component.material_code),
+        "holder_name": facet_values(base, Component.holder_name),
+        "cabinet_name": facet_values(loc, Cabinet.name),
+        "room_code": facet_values(room, Room.code),
+    }

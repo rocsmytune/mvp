@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react'
 import { Form, Input, InputNumber, Modal, Select, message } from 'antd'
 import { getErrorMessage } from '../api/client'
 import { fetchDictionaries, updateAsset } from '../api'
+import { SOURCE_LABEL } from '../constants'
 import type { Asset, AssetUpdatePayload } from '../api/types'
 
 const FALLBACK_STATUS = [{ value: 'in_use', label: '在用' }]
-
-const SOURCE_LABEL: Record<string, string> = { manual: '手工', import: '导入', bmc: 'BMC' }
 
 // 关键字段来源小标（只读提示，不参与编辑）。
 function sourceHint(asset: Asset, key: string): string | undefined {

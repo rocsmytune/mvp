@@ -37,6 +37,7 @@ import type {
   ImportUploadResponse,
 } from '../api/types'
 import { downloadBackup, downloadImportTemplate, IMPORT_HEADERS, parseImportExcel } from '../lib/excel'
+import { fmt, fmtTime, uText } from '../lib/format'
 
 // 可服务性：状态「三层编码」——颜色 Tag + 图标 + 文字，不只依赖颜色（色弱友好）。
 const ACTION_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -67,21 +68,6 @@ const BATCH_STATUS_META: Record<string, { label: string; color: string }> = {
 }
 
 type Phase = 'idle' | 'preview' | 'done'
-
-function fmt(value: string | null | undefined): string {
-  if (value === null || value === undefined || value === '') return '—'
-  return value
-}
-
-function uText(row: { u_start: number | null; u_end: number | null }): string {
-  if (row.u_start === null || row.u_end === null) return '—'
-  return row.u_start === row.u_end ? `${row.u_start}U` : `${row.u_start}-${row.u_end}U`
-}
-
-function fmtTime(iso: string): string {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('zh-CN')
-}
 
 export default function ImportCenterPage({ isAdmin }: { isAdmin: boolean }) {
   const [phase, setPhase] = useState<Phase>('idle')
@@ -200,7 +186,7 @@ export default function ImportCenterPage({ isAdmin }: { isAdmin: boolean }) {
       { title: 'BMC IP', dataIndex: 'bmc_ip', width: 130, render: fmt },
       { title: '整机SN', dataIndex: 'machine_sn', width: 130, render: fmt },
       { title: '机柜', dataIndex: 'cabinet_name', width: 110, render: fmt },
-      { title: 'U位', width: 80, render: (_, r) => uText(r) },
+      { title: 'U位', width: 80, render: (_, r) => uText(r.u_start, r.u_end) },
       { title: '资产SN', dataIndex: 'asset_sn', width: 130, render: fmt },
       { title: '挂账人', dataIndex: 'holder_name', width: 110, render: fmt },
       {

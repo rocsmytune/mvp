@@ -248,6 +248,15 @@ export interface ComponentUpdatePayload {
   holder_name?: string | null
 }
 
+// ---------- 列筛选 facet ----------
+
+export interface FacetValue {
+  value: string
+  count: number
+}
+
+export type Facets = Record<string, FacetValue[]>
+
 // ---------- 变更日志 ----------
 
 export interface ChangeLogEntry {

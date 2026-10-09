@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -15,9 +15,15 @@ from app.models.user import User
 from app.permissions import ensure_can_manage_cabinet
 from app.schemas.asset import AssetCreate, AssetUpdate
 from app.services import changelog
+from app.services.facets import facet_values
 
 # 关键字段：写入时记录来源，manual 值不被 import/bmc 静默覆盖（规则6）
 TRACKED_FIELDS = ("cpu_model", "sn", "ip_inband", "bmc_ip")
+
+
+def _contains(col, values: list[str]):
+    """文本列「包含」匹配：任一 value 命中即满足（列内 OR）。"""
+    return or_(*[col.ilike(f"%{v}%") for v in values])
 
 
 def _get_cabinet(db: Session, cabinet_id: int | None) -> Cabinet | None:
@@ -185,6 +191,14 @@ def list_assets(
     asset_type: str | None = None,
     status: str | None = None,
     q: str | None = None,
+    types: list[str] | None = None,
+    statuses: list[str] | None = None,
+    models: list[str] | None = None,
+    sns: list[str] | None = None,
+    ip_inbands: list[str] | None = None,
+    bmc_ips: list[str] | None = None,
+    room_codes: list[str] | None = None,
+    cabinet_names: list[str] | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Asset], int]:
@@ -208,6 +222,36 @@ def list_assets(
                 Asset.model.ilike(like),
             )
         )
+
+    # 多值列筛选（枚举列精确、文本列包含），多列 AND、列内 OR。
+    if types:
+        base = base.filter(Asset.type.in_(types))
+    if statuses:
+        base = base.filter(Asset.status.in_(statuses))
+    if models:
+        base = base.filter(_contains(Asset.model, models))
+    if sns:
+        base = base.filter(_contains(Asset.sn, sns))
+    if ip_inbands:
+        base = base.filter(_contains(Asset.ip_inband, ip_inbands))
+    if bmc_ips:
+        base = base.filter(_contains(Asset.bmc_ip, bmc_ips))
+    # 机柜/机房为联表列，用子查询过滤，避免污染下方 outerjoin 的列取用。
+    if cabinet_names:
+        base = base.filter(
+            Asset.cabinet_id.in_(
+                db.query(Cabinet.id).filter(_contains(Cabinet.name, cabinet_names))
+            )
+        )
+    if room_codes:
+        base = base.filter(
+            Asset.cabinet_id.in_(
+                db.query(Cabinet.id)
+                .join(Room, Room.id == Cabinet.room_id)
+                .filter(Room.code.in_(room_codes))
+            )
+        )
+
     total = base.count()
     rows = (
         base.outerjoin(Cabinet, Cabinet.id == Asset.cabinet_id)
@@ -224,3 +268,20 @@ def list_assets(
         asset.room_code = room_code
         items.append(asset)
     return items, total
+
+
+def list_asset_facets(db: Session) -> dict[str, list[dict]]:
+    """设备列表各筛选列的去重值 + 计数（未删除设备）。"""
+    base = db.query(Asset).filter(Asset.deleted_at.is_(None))
+    cab = base.outerjoin(Cabinet, Cabinet.id == Asset.cabinet_id)
+    room = cab.outerjoin(Room, Room.id == Cabinet.room_id)
+    return {
+        "type": facet_values(base, Asset.type),
+        "status": facet_values(base, Asset.status),
+        "model": facet_values(base, Asset.model),
+        "sn": facet_values(base, Asset.sn),
+        "ip_inband": facet_values(base, Asset.ip_inband),
+        "bmc_ip": facet_values(base, Asset.bmc_ip),
+        "cabinet_name": facet_values(cab, Cabinet.name),
+        "room_code": facet_values(room, Room.code),
+    }

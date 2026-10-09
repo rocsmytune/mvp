@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { Form, Input, InputNumber, Modal, Select, message } from 'antd'
 import { getErrorMessage } from '../api/client'
 import { createAsset, fetchDictionaries } from '../api'
+import { TYPE_LABEL } from '../constants'
 import type { Asset, AssetCreatePayload } from '../api/types'
 
 const TYPE_OPTIONS = [
-  { value: 'server', label: '服务器' },
-  { value: 'switch', label: '交换机' },
+  { value: 'server', label: TYPE_LABEL.server },
+  { value: 'switch', label: TYPE_LABEL.switch },
 ]
 const FALLBACK_STATUS = [{ value: 'in_use', label: '在用' }]
 
