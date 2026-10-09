@@ -12,6 +12,7 @@ import DictionaryManagePage from './pages/DictionaryManagePage'
 import CabinetManagePage from './pages/CabinetManagePage'
 import AssetListPage from './pages/AssetListPage'
 import GlobalSearch from './components/GlobalSearch'
+import ChatAssistant from './components/ChatAssistant'
 
 // 业务管理员（系统管理员 / 物料管理员）：具备物料/机柜/导入/导出权限。
 const isBusinessAdmin = (role: string) => role === 'system_admin' || role === 'material_admin'
@@ -125,6 +126,7 @@ export default function App() {
           />
         )}
       </Layout.Content>
+      <ChatAssistant user={user} onNavigate={handleSearchNavigate} />
     </Layout>
   )
 }

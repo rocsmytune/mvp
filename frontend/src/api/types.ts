@@ -433,3 +433,30 @@ export interface ExportSnapshot {
   assets: ExportAsset[]
   components: ExportComponent[]
 }
+
+// ---------- AI 助手（LLM 配置与对话） ----------
+
+export interface GlobalConfig {
+  base_url: string | null
+  model: string | null
+  api_key_masked: string | null
+  daily_token_quota: number
+  configured: boolean
+}
+
+export interface PersonalConfig {
+  base_url: string | null
+  model: string | null
+  api_key_masked: string | null
+  enabled: boolean
+}
+
+export interface TestConnResponse {
+  ok: boolean
+  message: string
+}
+
+export interface ChatResponse {
+  reply: string
+  hits: SearchResult[]
+}

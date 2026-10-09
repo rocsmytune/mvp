@@ -137,3 +137,35 @@ CREATE TABLE dictionaries (
   sort_no  INT NOT NULL DEFAULT 0,
   UNIQUE (kind, code)
 );
+
+-- AI 助手（chatbot）LLM 配置与用量（只读对话，不写资产）。
+-- 三层配置：全局默认（app_settings，system_admin 配）→ 个人覆盖（user_llm_config）
+-- → 配额（llm_usage，按 token 累计，默认 API 走配额、个人 key 免配额）。
+CREATE TABLE app_settings (
+  id                 SERIAL PRIMARY KEY,      -- 固定单行 id=1
+  llm_base_url       VARCHAR(500),
+  llm_api_key_enc    TEXT,                    -- api_key 经 core.crypto 加密，不落明文
+  llm_model          VARCHAR(128),
+  daily_token_quota  INT NOT NULL DEFAULT 50000,  -- 每用户每日 token 配额
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE user_llm_config (
+  id               SERIAL PRIMARY KEY,
+  user_id          INT NOT NULL REFERENCES users(id),
+  llm_base_url     VARCHAR(500),
+  llm_api_key_enc  TEXT,
+  llm_model        VARCHAR(128),
+  enabled          BOOLEAN NOT NULL DEFAULT true,  -- 是否用个人配置覆盖全局默认
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id)
+);
+
+CREATE TABLE llm_usage (
+  id          SERIAL PRIMARY KEY,
+  user_id     INT NOT NULL REFERENCES users(id),
+  usage_date  DATE NOT NULL,           -- 自然日，配额按日累计
+  tokens_used INT NOT NULL DEFAULT 0,
+  UNIQUE (user_id, usage_date)
+);
+CREATE INDEX idx_llm_usage_user ON llm_usage(user_id);

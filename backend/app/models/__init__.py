@@ -7,6 +7,7 @@ from app.models.change_log import ChangeLog
 from app.models.component import Component
 from app.models.dictionary import Dictionary
 from app.models.import_batch import ImportBatch
+from app.models.llm_config import AppSetting, LlmUsage, UserLlmConfig
 from app.models.room import Room
 from app.models.user import User
 
@@ -20,4 +21,7 @@ __all__ = [
     "ChangeLog",
     "ImportBatch",
     "Dictionary",
+    "AppSetting",
+    "UserLlmConfig",
+    "LlmUsage",
 ]

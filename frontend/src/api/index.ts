@@ -16,6 +16,10 @@ import type {
   DictionaryUsage,
   ExportSnapshot,
   Facets,
+  GlobalConfig,
+  PersonalConfig,
+  TestConnResponse,
+  ChatResponse,
   ImportBatch,
   ImportConfirmResponse,
   ImportRow,
@@ -276,5 +280,51 @@ export async function fetchImportBatches(): Promise<{ total: number; items: Impo
 // 导出备份快照（仅管理员，只读）：机柜 / 资产 / 部件三层业务键。
 export async function fetchExportSnapshot(): Promise<ExportSnapshot> {
   const res = await api.get<ExportSnapshot>('/export/snapshot')
+  return res.data
+}
+
+// ---------- AI 助手（LLM 配置与对话） ----------
+
+export async function fetchGlobalConfig(): Promise<GlobalConfig> {
+  const res = await api.get<GlobalConfig>('/llm-config/global')
+  return res.data
+}
+
+export async function updateGlobalConfig(data: {
+  base_url?: string | null
+  api_key?: string | null
+  model?: string | null
+  daily_token_quota?: number | null
+}): Promise<GlobalConfig> {
+  const res = await api.put<GlobalConfig>('/llm-config/global', data)
+  return res.data
+}
+
+export async function fetchPersonalConfig(): Promise<PersonalConfig> {
+  const res = await api.get<PersonalConfig>('/llm-config/me')
+  return res.data
+}
+
+export async function updatePersonalConfig(data: {
+  base_url?: string | null
+  api_key?: string | null
+  model?: string | null
+  enabled?: boolean | null
+}): Promise<PersonalConfig> {
+  const res = await api.put<PersonalConfig>('/llm-config/me', data)
+  return res.data
+}
+
+export async function testLlmConnection(data: {
+  base_url: string
+  api_key?: string | null
+  model?: string | null
+}): Promise<TestConnResponse> {
+  const res = await api.post<TestConnResponse>('/llm-config/test', data, { timeout: 15000 })
+  return res.data
+}
+
+export async function chatWithAssistant(message: string): Promise<ChatResponse> {
+  const res = await api.post<ChatResponse>('/chat', { message }, { timeout: 60000 })
   return res.data
 }
