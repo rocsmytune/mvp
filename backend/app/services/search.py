@@ -9,7 +9,7 @@ from app.models.component import Component
 from app.models.room import Room
 from app.models.user import User
 
-ASSET_SEARCH_FIELDS = ("sn", "asset_tag", "ip_inband", "bmc_ip")
+ASSET_SEARCH_FIELDS = ("sn", "asset_tag", "ip_inband", "bmc_ip", "remark")
 
 
 def _matched_field(asset: Asset, q: str) -> str:
@@ -42,6 +42,7 @@ def search(db: Session, q: str, limit: int = 50) -> list[dict]:
                 Asset.asset_tag.ilike(like),
                 Asset.ip_inband.ilike(like),
                 Asset.bmc_ip.ilike(like),
+                Asset.remark.ilike(like),
             )
         )
         .order_by(Asset.id.desc())
@@ -82,16 +83,26 @@ def search(db: Session, q: str, limit: int = 50) -> list[dict]:
         .outerjoin(Room, Room.id == Cabinet.room_id)
         .outerjoin(User, User.id == Cabinet.owner_id)
         .filter(Component.deleted_at.is_(None), Asset.deleted_at.is_(None))
-        .filter(Component.sn.ilike(like))
+        .filter(
+            or_(
+                Component.sn.ilike(like),
+                Component.remark.ilike(like),
+            )
+        )
         .order_by(Component.id.desc())
         .limit(limit)
         .all()
     )
     for comp, asset, room_code, cabinet_name, owner_name in comp_rows:
+        matched = (
+            "component_remark"
+            if (comp.remark and q.strip().lower() in comp.remark.lower())
+            else "component_sn"
+        )
         results.append(
             {
                 "kind": "component",
-                "matched_field": "component_sn",
+                "matched_field": matched,
                 "room_code": room_code,
                 "cabinet_id": asset.cabinet_id,
                 "cabinet_name": cabinet_name,

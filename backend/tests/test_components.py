@@ -189,6 +189,7 @@ def test_list_components_filters_and_location(crud_users):
                 "u_end": 32,
                 "sn": "PARENT-SN",
                 "model": "SR650",
+                "bmc_ip": "10.0.0.32",
             },
             headers=h,
         ).json()
@@ -209,6 +210,7 @@ def test_list_components_filters_and_location(crud_users):
         cpu = next(c for c in r.json()["items"] if c["sn"] == "CPU-SN-1")
         assert cpu["asset_sn"] == "PARENT-SN"
         assert cpu["asset_model"] == "SR650"
+        assert cpu["asset_bmc_ip"] == "10.0.0.32"
         assert cpu["cabinet_id"] == crud_users["cab_admin"].id
         assert cpu["cabinet_name"] == "T-A01-02"
         assert cpu["room_code"] == "T-ROOM-1"
@@ -289,3 +291,107 @@ def test_components_facets(crud_users):
         assert {f["value"]: f["count"] for f in body["category"]} == {"内存": 1, "硬盘": 1}
         assert {f["value"]: f["count"] for f in body["cabinet_name"]}["T-A01-02"] == 2
         assert {f["value"]: f["count"] for f in body["room_code"]}["T-ROOM-1"] == 2
+
+
+def test_component_remark_filter_and_facet(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        asset = client.post(
+            "/api/assets",
+            json={
+                "type": "server",
+                "cabinet_id": crud_users["cab_admin"].id,
+                "u_start": 24,
+                "u_end": 24,
+                "sn": "PARENT-RM",
+            },
+            headers=h,
+        ).json()
+        client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "硬盘", "sn": "DISK-RM-1", "remark": "备用盘"},
+            headers=h,
+        )
+        client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "内存", "sn": "MEM-RM-1", "remark": "扩容"},
+            headers=h,
+        )
+
+        # 备注包含匹配（列内 OR）
+        r = client.get("/api/components", params=[("remarks", "备用")], headers=h)
+        assert [c["sn"] for c in r.json()["items"]] == ["DISK-RM-1"]
+
+        # facet 带备注列
+        r = client.get("/api/components/facets", headers=h)
+        assert {f["value"]: f["count"] for f in r.json()["remark"]} == {"备用盘": 1, "扩容": 1}
+
+
+def test_update_component_move_asset(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        src = _create_asset(client, h, crud_users["cab_admin"].id, 30, 30)
+        dst = _create_asset(client, h, crud_users["cab_admin"].id, 29, 29)
+        comp = client.post(
+            "/api/components",
+            json={"asset_id": src["id"], "category": "内存", "sn": "MEM-MOVE-1"},
+            headers=h,
+        ).json()
+
+        r = client.patch(
+            f"/api/components/{comp['id']}", json={"asset_id": dst["id"]}, headers=h
+        )
+        assert r.status_code == 200
+        assert r.json()["asset_id"] == dst["id"]
+
+    db = SessionLocal()
+    try:
+        logs = (
+            db.query(ChangeLog)
+            .filter(
+                ChangeLog.target_type == "component",
+                ChangeLog.target_id == comp["id"],
+                ChangeLog.field == "asset_id",
+            )
+            .all()
+        )
+        assert len(logs) == 1
+        assert (logs[0].old_value, logs[0].new_value) == (str(src["id"]), str(dst["id"]))
+    finally:
+        db.close()
+
+
+def test_update_component_move_asset_not_found(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        asset = _create_asset(client, h, crud_users["cab_admin"].id, 28, 28)
+        comp = client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "内存"},
+            headers=h,
+        ).json()
+
+        r = client.patch(
+            f"/api/components/{comp['id']}", json={"asset_id": 999999}, headers=h
+        )
+        assert r.status_code == 404
+
+
+def test_update_component_move_asset_no_permission(crud_users):
+    with TestClient(app) as client:
+        admin_h = _auth(client, "910001", "admin-pass")
+        owner_h = _auth(client, "910002", "owner-pass")
+        # owner 机柜内的设备（源），admin 机柜内的设备（目标）
+        src = _create_asset(client, admin_h, crud_users["cab_owner"].id, 26, 26)
+        dst = _create_asset(client, admin_h, crud_users["cab_admin"].id, 26, 26)
+        comp = client.post(
+            "/api/components",
+            json={"asset_id": src["id"], "category": "内存"},
+            headers=admin_h,
+        ).json()
+
+        # owner 可改自己机柜内的部件，但不能移动到他人机柜
+        r = client.patch(
+            f"/api/components/{comp['id']}", json={"asset_id": dst["id"]}, headers=owner_h
+        )
+        assert r.status_code == 403

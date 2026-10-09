@@ -130,7 +130,7 @@ export default function GlobalSearch({ onNavigate }: GlobalSearchProps) {
       notFoundContent={loading ? '搜索中…' : '无匹配结果'}
       allowClear
     >
-      <Input ref={inputRef} prefix={<SearchOutlined />} placeholder="搜索 SN / IP / 资产编号（按 / 聚焦）" />
+      <Input ref={inputRef} prefix={<SearchOutlined />} placeholder="搜索 SN / IP / 资产编号 / 备注（按 / 聚焦）" />
     </AutoComplete>
   )
 }

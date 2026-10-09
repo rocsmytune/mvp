@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Table, Tabs, Tag, message } from 'antd'
+import { Button, Card, Space, Table, Tabs, Tag, message } from 'antd'
 import type { TableColumnsType } from 'antd'
 import { FilterOutlined } from '@ant-design/icons'
 import { getErrorMessage } from '../api/client'
@@ -14,11 +14,17 @@ import { TYPE_COLOR, TYPE_LABEL } from '../constants'
 import { uText } from '../lib/format'
 import FacetFilterDropdown from '../components/FacetFilterDropdown'
 import type { FacetOption } from '../components/FacetFilterDropdown'
-import type { Asset, Component, Dictionary, Facets } from '../api/types'
+import AssetEditModal from '../components/AssetEditModal'
+import ComponentFormModal from '../components/ComponentFormModal'
+import type { Asset, Component, Dictionary, Facets, UserInfo } from '../api/types'
 
 interface AssetListPageProps {
+  user: UserInfo
   onNavigate: (cabinetId: number, assetId: number) => void
 }
+
+// 业务管理员（系统管理员 / 物料管理员）：具备物料/机柜/导入/导出权限。
+const isBusinessAdmin = (role: string) => role === 'system_admin' || role === 'material_admin'
 
 // 列筛选：数据列 key → 后端查询参数名。
 const ASSET_FILTER_PARAMS: Record<string, string> = {
@@ -28,6 +34,7 @@ const ASSET_FILTER_PARAMS: Record<string, string> = {
   ip_inband: 'ip_inbands',
   bmc_ip: 'bmc_ips',
   status: 'statuses',
+  remark: 'remarks',
   room_code: 'room_codes',
   cabinet_name: 'cabinet_names',
 }
@@ -37,6 +44,7 @@ const COMPONENT_FILTER_PARAMS: Record<string, string> = {
   sn: 'sns',
   material_code: 'material_codes',
   holder_name: 'holder_names',
+  remark: 'remarks',
   room_code: 'room_codes',
   cabinet_name: 'cabinet_names',
 }
@@ -81,8 +89,14 @@ function filterProps(
   }
 }
 
-// 设备 Tab：只读浏览 + 表头列筛选 + 服务端分页，点击行跳转到机柜详情。
-function AssetTab({ onNavigate }: AssetListPageProps) {
+// 判断某行是否可编辑：管理员全权，柜主仅自己的机柜（前端隐藏，后端仍强制校验）。
+function canEdit(user: UserInfo, cabinetOwnerId?: number | null): boolean {
+  if (isBusinessAdmin(user.role)) return true
+  return user.role === 'cabinet_owner' && cabinetOwnerId != null && cabinetOwnerId === user.id
+}
+
+// 设备 Tab：浏览 + 表头列筛选 + 服务端分页 + 行内编辑，点击行跳转到机柜详情。
+function AssetTab({ user, onNavigate }: AssetListPageProps) {
   const [rows, setRows] = useState<Asset[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -91,6 +105,7 @@ function AssetTab({ onNavigate }: AssetListPageProps) {
   const [statusOptions, setStatusOptions] = useState<Dictionary[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [editing, setEditing] = useState<Asset | null>(null)
 
   useEffect(() => {
     fetchDictionaries('asset_status').then(setStatusOptions).catch(() => setStatusOptions([]))
@@ -194,18 +209,33 @@ function AssetTab({ onNavigate }: AssetListPageProps) {
     },
     { title: 'U位', width: 80, render: (_, a) => uText(a.u_start, a.u_end) },
     {
+      title: '备注',
+      dataIndex: 'remark',
+      width: 150,
+      ellipsis: true,
+      render: (v) => v || '—',
+      ...filterProps('remark', filters, facets, (v) => v, applyFilter),
+    },
+    {
       title: '操作',
-      width: 70,
+      width: 120,
       fixed: 'right',
       render: (_, a) => (
-        <Button
-          type="link"
-          size="small"
-          disabled={a.cabinet_id == null}
-          onClick={() => a.cabinet_id != null && onNavigate(a.cabinet_id, a.id)}
-        >
-          查看
-        </Button>
+        <Space size={0}>
+          <Button
+            type="link"
+            size="small"
+            disabled={a.cabinet_id == null}
+            onClick={() => a.cabinet_id != null && onNavigate(a.cabinet_id, a.id)}
+          >
+            查看
+          </Button>
+          {canEdit(user, a.cabinet_owner_id) && a.cabinet_id != null && (
+            <Button type="link" size="small" onClick={() => setEditing(a)}>
+              编辑
+            </Button>
+          )}
+        </Space>
       ),
     },
   ]
@@ -218,7 +248,7 @@ function AssetTab({ onNavigate }: AssetListPageProps) {
         dataSource={rows}
         loading={loading}
         size="small"
-        scroll={{ x: 1150 }}
+        scroll={{ x: 1300 }}
         pagination={{
           current: page,
           pageSize,
@@ -231,12 +261,20 @@ function AssetTab({ onNavigate }: AssetListPageProps) {
           },
         }}
       />
+      <AssetEditModal
+        asset={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null)
+          void load()
+        }}
+      />
     </Card>
   )
 }
 
-// 物料 Tab：只读浏览 + 表头列筛选 + 服务端分页，点击行跳转到所在整机详情。
-function ComponentTab({ onNavigate }: AssetListPageProps) {
+// 物料 Tab：浏览 + 表头列筛选 + 服务端分页 + 行内编辑（含「所在整机」迁移），点击行跳转。
+function ComponentTab({ user, onNavigate }: AssetListPageProps) {
   const [rows, setRows] = useState<Component[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -245,6 +283,7 @@ function ComponentTab({ onNavigate }: AssetListPageProps) {
   const [categoryOptions, setCategoryOptions] = useState<Dictionary[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [editing, setEditing] = useState<Component | null>(null)
 
   useEffect(() => {
     fetchDictionaries('component_category')
@@ -317,7 +356,7 @@ function ComponentTab({ onNavigate }: AssetListPageProps) {
     {
       title: '所在整机',
       width: 160,
-      render: (_, c) => c.asset_sn || c.asset_model || `#${c.asset_id}`,
+      render: (_, c) => c.asset_bmc_ip || c.asset_sn || c.asset_model || `#${c.asset_id}`,
     },
     {
       title: '机房',
@@ -341,18 +380,33 @@ function ComponentTab({ onNavigate }: AssetListPageProps) {
       ...filterProps('holder_name', filters, facets, (v) => v, applyFilter),
     },
     {
+      title: '备注',
+      dataIndex: 'remark',
+      width: 150,
+      ellipsis: true,
+      render: (v) => v || '—',
+      ...filterProps('remark', filters, facets, (v) => v, applyFilter),
+    },
+    {
       title: '操作',
-      width: 70,
+      width: 120,
       fixed: 'right',
       render: (_, c) => (
-        <Button
-          type="link"
-          size="small"
-          disabled={c.cabinet_id == null}
-          onClick={() => c.cabinet_id != null && onNavigate(c.cabinet_id, c.asset_id)}
-        >
-          查看
-        </Button>
+        <Space size={0}>
+          <Button
+            type="link"
+            size="small"
+            disabled={c.cabinet_id == null}
+            onClick={() => c.cabinet_id != null && onNavigate(c.cabinet_id, c.asset_id)}
+          >
+            查看
+          </Button>
+          {canEdit(user, c.cabinet_owner_id) && c.cabinet_id != null && (
+            <Button type="link" size="small" onClick={() => setEditing(c)}>
+              编辑
+            </Button>
+          )}
+        </Space>
       ),
     },
   ]
@@ -365,7 +419,7 @@ function ComponentTab({ onNavigate }: AssetListPageProps) {
         dataSource={rows}
         loading={loading}
         size="small"
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1350 }}
         pagination={{
           current: page,
           pageSize,
@@ -378,17 +432,29 @@ function ComponentTab({ onNavigate }: AssetListPageProps) {
           },
         }}
       />
+      {editing && (
+        <ComponentFormModal
+          assetId={editing.asset_id}
+          component={editing}
+          movable
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null)
+            void load()
+          }}
+        />
+      )}
     </Card>
   )
 }
 
-export default function AssetListPage({ onNavigate }: AssetListPageProps) {
+export default function AssetListPage({ user, onNavigate }: AssetListPageProps) {
   return (
     <Tabs
       defaultActiveKey="assets"
       items={[
-        { key: 'assets', label: '设备', children: <AssetTab onNavigate={onNavigate} /> },
-        { key: 'components', label: '物料', children: <ComponentTab onNavigate={onNavigate} /> },
+        { key: 'assets', label: '设备', children: <AssetTab user={user} onNavigate={onNavigate} /> },
+        { key: 'components', label: '物料', children: <ComponentTab user={user} onNavigate={onNavigate} /> },
       ]}
     />
   )

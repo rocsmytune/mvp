@@ -173,6 +173,7 @@ export interface Asset {
   // 列表页联表返回的定位上下文（详情/写接口可能不含）
   cabinet_name?: string | null
   room_code?: string | null
+  cabinet_owner_id?: number | null
 }
 
 export interface Component {
@@ -192,9 +193,11 @@ export interface Component {
   // 列表页联表返回的定位上下文
   asset_sn?: string | null
   asset_model?: string | null
+  asset_bmc_ip?: string | null
   cabinet_id?: number | null
   cabinet_name?: string | null
   room_code?: string | null
+  cabinet_owner_id?: number | null
 }
 
 // ---------- 编辑入口写操作 payload（与后端 Pydantic 对齐，可选字段全部可空） ----------
@@ -239,6 +242,7 @@ export interface ComponentCreatePayload {
 }
 
 export interface ComponentUpdatePayload {
+  asset_id?: number | null
   category?: string | null
   sn?: string | null
   model?: string | null

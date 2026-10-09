@@ -31,6 +31,7 @@ def list_components(
     holder_names: list[str] | None = Query(None),
     room_codes: list[str] | None = Query(None),
     cabinet_names: list[str] | None = Query(None),
+    remarks: list[str] | None = Query(None),
     skip: int = 0,
     limit: int = Query(100, le=500),
     db: Session = Depends(get_db),
@@ -47,6 +48,7 @@ def list_components(
         holder_names=holder_names,
         room_codes=room_codes,
         cabinet_names=cabinet_names,
+        remarks=remarks,
         skip=skip,
         limit=limit,
     )

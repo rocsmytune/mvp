@@ -61,6 +61,7 @@ class AssetOut(BaseModel):
     # 列表页定位上下文（仅 list_assets 联表填充，非表字段；其余接口为 None）
     cabinet_name: str | None = None
     room_code: str | None = None
+    cabinet_owner_id: int | None = None
 
 
 class AssetListOut(BaseModel):

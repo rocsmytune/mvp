@@ -133,7 +133,7 @@ export default function CabinetDrawer({
     <Drawer
       open={cabinet !== null}
       onClose={onClose}
-      width="min(90vw, 1080px)"
+      width="min(90vw, max(50vw, 760px))"
       destroyOnClose
       title={cabinet ? `机柜 ${cabinet.name}` : ''}
       extra={
@@ -197,6 +197,8 @@ function CabinetBody({
   const [createOpen, setCreateOpen] = useState(false)
   const [createU, setCreateU] = useState(1)
   const [statusLabel, setStatusLabel] = useState<Record<string, string>>({ in_use: '在用' })
+  // 部件表每页条数（受控，配合 onChange 让 20/50/100 生效）。
+  const [compPageSize, setCompPageSize] = useState(10)
   // 资产表可拖拽列宽（自实现 resize 手柄，不引入额外依赖）。
   const [assetColWidths, setAssetColWidths] = useState<Record<string, number>>({
     bmc_ip: 120,
@@ -472,6 +474,7 @@ function CabinetBody({
     { title: '名称', dataIndex: 'name', render: fmt },
     { title: '物料编码', dataIndex: 'material_code', render: fmt },
     { title: '挂账人', dataIndex: 'holder_name', render: fmt },
+    { title: '备注', dataIndex: 'remark', render: fmt },
   ]
   if (canManage) {
     compColumns.push({
@@ -598,10 +601,16 @@ function CabinetBody({
       ) : (
         <Table
           rowKey="id"
+          key={a.id}
           columns={compColumns}
           dataSource={components}
           size="small"
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+          pagination={{
+            pageSize: compPageSize,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            onChange: (_page, size) => setCompPageSize(size),
+          }}
         />
       )}
 

@@ -299,3 +299,27 @@ def test_assets_facets(crud_users):
         assert {f["value"]: f["count"] for f in body["model"]}["R740"] == 1
         assert {f["value"]: f["count"] for f in body["room_code"]}["T-ROOM-1"] == 2
         assert {f["value"]: f["count"] for f in body["cabinet_name"]}["T-A01-02"] == 2
+
+
+def test_asset_remark_filter_and_facet(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        cid = crud_users["cab_admin"].id
+        client.post(
+            "/api/assets",
+            json=_create_payload(cid, 21, 21, sn="SRV-RM-1", remark="报废待处理"),
+            headers=h,
+        )
+        client.post(
+            "/api/assets",
+            json=_create_payload(cid, 22, 22, sn="SRV-RM-2", remark="正常"),
+            headers=h,
+        )
+
+        # 备注包含匹配（列内 OR）
+        r = client.get("/api/assets", params=[("remarks", "报废")], headers=h)
+        assert [a["sn"] for a in r.json()["items"]] == ["SRV-RM-1"]
+
+        # facet 带备注列
+        r = client.get("/api/assets/facets", headers=h)
+        assert {f["value"]: f["count"] for f in r.json()["remark"]} == {"报废待处理": 1, "正常": 1}

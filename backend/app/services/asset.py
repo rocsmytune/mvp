@@ -199,6 +199,7 @@ def list_assets(
     bmc_ips: list[str] | None = None,
     room_codes: list[str] | None = None,
     cabinet_names: list[str] | None = None,
+    remarks: list[str] | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Asset], int]:
@@ -236,6 +237,8 @@ def list_assets(
         base = base.filter(_contains(Asset.ip_inband, ip_inbands))
     if bmc_ips:
         base = base.filter(_contains(Asset.bmc_ip, bmc_ips))
+    if remarks:
+        base = base.filter(_contains(Asset.remark, remarks))
     # 机柜/机房为联表列，用子查询过滤，避免污染下方 outerjoin 的列取用。
     if cabinet_names:
         base = base.filter(
@@ -256,15 +259,16 @@ def list_assets(
     rows = (
         base.outerjoin(Cabinet, Cabinet.id == Asset.cabinet_id)
         .outerjoin(Room, Room.id == Cabinet.room_id)
-        .add_columns(Cabinet.name, Room.code)
+        .add_columns(Cabinet.name, Cabinet.owner_id, Room.code)
         .order_by(Asset.id.desc())
         .offset(skip)
         .limit(limit)
         .all()
     )
     items = []
-    for asset, cabinet_name, room_code in rows:
+    for asset, cabinet_name, cabinet_owner_id, room_code in rows:
         asset.cabinet_name = cabinet_name
+        asset.cabinet_owner_id = cabinet_owner_id
         asset.room_code = room_code
         items.append(asset)
     return items, total
@@ -282,6 +286,7 @@ def list_asset_facets(db: Session) -> dict[str, list[dict]]:
         "sn": facet_values(base, Asset.sn),
         "ip_inband": facet_values(base, Asset.ip_inband),
         "bmc_ip": facet_values(base, Asset.bmc_ip),
+        "remark": facet_values(base, Asset.remark),
         "cabinet_name": facet_values(cab, Cabinet.name),
         "room_code": facet_values(room, Room.code),
     }

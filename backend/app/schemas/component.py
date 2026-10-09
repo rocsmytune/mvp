@@ -16,6 +16,7 @@ class ComponentCreate(BaseModel):
 
 
 class ComponentUpdate(BaseModel):
+    asset_id: int | None = None
     category: str | None = None
     sn: str | None = None
     model: str | None = None
@@ -46,9 +47,11 @@ class ComponentOut(BaseModel):
     # 列表页定位上下文（仅 list_components 联表填充，非表字段；其余接口为 None）
     asset_sn: str | None = None
     asset_model: str | None = None
+    asset_bmc_ip: str | None = None
     cabinet_id: int | None = None
     cabinet_name: str | None = None
     room_code: str | None = None
+    cabinet_owner_id: int | None = None
 
 
 class ComponentListOut(BaseModel):

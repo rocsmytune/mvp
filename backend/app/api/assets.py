@@ -37,6 +37,7 @@ def list_assets(
     bmc_ips: list[str] | None = Query(None),
     room_codes: list[str] | None = Query(None),
     cabinet_names: list[str] | None = Query(None),
+    remarks: list[str] | None = Query(None),
     skip: int = 0,
     limit: int = Query(50, le=200),
     db: Session = Depends(get_db),
@@ -57,6 +58,7 @@ def list_assets(
         bmc_ips=bmc_ips,
         room_codes=room_codes,
         cabinet_names=cabinet_names,
+        remarks=remarks,
         skip=skip,
         limit=limit,
     )

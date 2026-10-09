@@ -55,6 +55,7 @@ export async function fetchComponents(assetId: number): Promise<Component[]> {
 
 // 设备列表页：服务端分页 + 过滤（多值列筛选）。
 export async function fetchAssetPage(params?: {
+  q?: string
   types?: string[]
   statuses?: string[]
   models?: string[]
@@ -63,6 +64,7 @@ export async function fetchAssetPage(params?: {
   bmc_ips?: string[]
   room_codes?: string[]
   cabinet_names?: string[]
+  remarks?: string[]
   skip?: number
   limit?: number
 }): Promise<{ total: number; items: Asset[] }> {
@@ -78,6 +80,7 @@ export async function fetchComponentPage(params?: {
   holder_names?: string[]
   room_codes?: string[]
   cabinet_names?: string[]
+  remarks?: string[]
   skip?: number
   limit?: number
 }): Promise<{ total: number; items: Component[] }> {

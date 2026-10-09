@@ -108,7 +108,7 @@ export default function App() {
       </Layout.Header>
       <Layout.Content style={{ padding: 24 }}>
         {page === 'assets' ? (
-          <AssetListPage onNavigate={handleSearchNavigate} />
+          <AssetListPage user={user} onNavigate={handleSearchNavigate} />
         ) : page === 'import' ? (
           <ImportCenterPage isAdmin={isBusinessAdmin(user.role)} />
         ) : page === 'users' ? (

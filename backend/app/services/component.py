@@ -95,6 +95,27 @@ def update_component(
 
     changes = data.model_dump(exclude_unset=True)
 
+    # 跨设备迁移（所在服务器）：校验目标设备存在 + 目标机柜权限，写 asset_id 变更日志。
+    current_asset = asset
+    new_asset_id = changes.pop("asset_id", None)
+    if new_asset_id is not None and new_asset_id != comp.asset_id:
+        target_asset = _get_asset(db, new_asset_id)
+        _ensure_can_manage_asset(db, operator, target_asset)
+        changelog.log(
+            db,
+            operator=operator,
+            target_type="component",
+            target_id=comp.id,
+            cabinet_id=target_asset.cabinet_id,
+            action="update",
+            field="asset_id",
+            old_value=comp.asset_id,
+            new_value=target_asset.id,
+            source=source,
+        )
+        comp.asset_id = target_asset.id
+        current_asset = target_asset
+
     # 挂账人单独解析：把「工号 姓名」拆成 holder_id + holder_name 一并落库。
     if "holder_name" in changes:
         holder_id, holder_name = _resolve_holder(db, changes.pop("holder_name"))
@@ -108,7 +129,7 @@ def update_component(
                 operator=operator,
                 target_type="component",
                 target_id=comp.id,
-                cabinet_id=asset.cabinet_id,
+                cabinet_id=current_asset.cabinet_id,
                 action="update",
                 field=field,
                 old_value=old,
@@ -126,7 +147,7 @@ def update_component(
             operator=operator,
             target_type="component",
             target_id=comp.id,
-            cabinet_id=asset.cabinet_id,
+            cabinet_id=current_asset.cabinet_id,
             action="update",
             field=field,
             old_value=old,
@@ -169,6 +190,7 @@ def list_components(
     holder_names: list[str] | None = None,
     room_codes: list[str] | None = None,
     cabinet_names: list[str] | None = None,
+    remarks: list[str] | None = None,
     skip: int = 0,
     limit: int = 100,
 ) -> tuple[list[Component], int]:
@@ -197,6 +219,8 @@ def list_components(
         base = base.filter(_contains(Component.material_code, material_codes))
     if holder_names:
         base = base.filter(_contains(Component.holder_name, holder_names))
+    if remarks:
+        base = base.filter(_contains(Component.remark, remarks))
     # 机柜/机房为联表列，经父资产子查询过滤，避免污染下方 outerjoin 的列取用。
     if cabinet_names:
         base = base.filter(
@@ -223,7 +247,7 @@ def list_components(
         .outerjoin(Room, Room.id == Cabinet.room_id)
         .outerjoin(User, User.id == Component.holder_id)
         .add_columns(
-            Asset.sn, Asset.model, Asset.cabinet_id, Cabinet.name, Room.code, User.employee_no
+            Asset.sn, Asset.model, Asset.bmc_ip, Asset.cabinet_id, Cabinet.name, Cabinet.owner_id, Room.code, User.employee_no
         )
         .order_by(Component.id.desc())
         .offset(skip)
@@ -231,11 +255,13 @@ def list_components(
         .all()
     )
     items = []
-    for comp, asset_sn, asset_model, cabinet_id, cabinet_name, room_code, holder_employee_no in rows:
+    for comp, asset_sn, asset_model, asset_bmc_ip, cabinet_id, cabinet_name, cabinet_owner_id, room_code, holder_employee_no in rows:
         comp.asset_sn = asset_sn
         comp.asset_model = asset_model
+        comp.asset_bmc_ip = asset_bmc_ip
         comp.cabinet_id = cabinet_id
         comp.cabinet_name = cabinet_name
+        comp.cabinet_owner_id = cabinet_owner_id
         comp.room_code = room_code
         comp.holder_employee_no = holder_employee_no
         items.append(comp)
@@ -254,6 +280,7 @@ def list_component_facets(db: Session) -> dict[str, list[dict]]:
         "sn": facet_values(base, Component.sn),
         "material_code": facet_values(base, Component.material_code),
         "holder_name": facet_values(base, Component.holder_name),
+        "remark": facet_values(base, Component.remark),
         "cabinet_name": facet_values(loc, Cabinet.name),
         "room_code": facet_values(room, Room.code),
     }

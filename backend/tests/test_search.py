@@ -123,3 +123,27 @@ def test_search_blank_returns_empty(crud_users):
         # 缺少 q：参数校验 422
         resp = client.get("/api/search", headers=h)
         assert resp.status_code == 422
+
+
+def test_search_by_remark(crud_users):
+    with TestClient(app) as client:
+        h = _auth(client, "910001", "admin-pass")
+        asset = _mk_asset(
+            client, h, crud_users["cab_owner"].id, sn="SRCH-REM-A", remark="关键业务机"
+        )
+        client.post(
+            "/api/components",
+            json={"asset_id": asset["id"], "category": "硬盘", "sn": "SRCH-REM-C", "remark": "故障盘"},
+            headers=h,
+        )
+
+        rows = _search(client, h, "关键业务机")
+        assert len(rows) == 1
+        assert rows[0]["kind"] == "asset"
+        assert rows[0]["matched_field"] == "remark"
+
+        rows = _search(client, h, "故障盘")
+        assert len(rows) == 1
+        assert rows[0]["kind"] == "component"
+        assert rows[0]["matched_field"] == "component_remark"
+        assert rows[0]["component_id"] is not None
